@@ -41,7 +41,11 @@ Choose your preferred container runtime:
 - **Mac**: `brew install podman`
 - **Linux**: [Distribution packages](https://podman.io/getting-started/installation)
 
-## Universal Setup Steps
+## Setup Steps
+
+### Download MCP image
+
+[Click here to download the Docker MCP image](https://ws-assets-prod-iad-r-iad-ed304a55c2ca1aee.s3.us-east-1.amazonaws.com/d01697ea-1e3c-4b38-934b-859884fdb406/ABAP-Accelerator-for-Q-Developer.zip)
 
 ### 1. Install Container Runtime
 
