@@ -2,12 +2,6 @@
 
 This guide covers setting up ABAP Accelerator for Amazon Q Developer with any container runtime: Docker Desktop, Finch, or Podman on any operating system.
 
-## Notices and Terms of Use
-
-ABAP Accelerator for Amazon Q Developer is AWS Content under the Amazon Customer Agreement (available at: https://aws.amazon.com/agreement/) or other written agreement governing your usage of AWS Services. If you do not have an Agreement governing use of Amazon Services ABAP Accelerator for Amazon Q Developer is made available to you under the terms of the AWS Intellectual Property License (available at: https://aws.amazon.com/legal/aws-ip-license-terms/).
-
-ABAP Accelerator for Amazon Q Developer is intended for use in a development environment for testing and validation purposes, and is not intended to be used in a production environment or with production workloads or data. ABAP Accelerator for Amazon Q Developer utilizes generative AI to create outputs, and AWS does not make any representations or warranties about the accuracy of the outputs of ABAP Accelerator for Amazon Q Developer. You are solely responsible for the use of any outputs that you utilize from ABAP Accelerator for Amazon Q Developer and appropriately reviewing, validating, or testing any outputs from ABAP Accelerator for Amazon Q Developer.
-
 ## ⚠️ **IMPORTANT: DEVELOPMENT USE ONLY**
 
 **This MCP server should ONLY be used with SAP Development environments as users are authorized to modify the code only in Dev environment such as:**
@@ -665,6 +659,11 @@ chmod 755 secrets/
 
 **Your secrets folder and configuration remain the same across updates.**
 
+## Terms of Use
+
+ABAP Accelerator for Amazon Q Developer is AWS Content under the Amazon Customer Agreement (available at: https://aws.amazon.com/agreement/) or other written agreement governing your usage of AWS Services. If you do not have an Agreement governing use of Amazon Services ABAP Accelerator for Amazon Q Developer is made available to you under the terms of the AWS Intellectual Property License (available at: https://aws.amazon.com/legal/aws-ip-license-terms/).
+
+ABAP Accelerator for Amazon Q Developer is intended for use in a development environment for testing and validation purposes, and is not intended to be used in a production environment or with production workloads or data. ABAP Accelerator for Amazon Q Developer utilizes generative AI to create outputs, and AWS does not make any representations or warranties about the accuracy of the outputs of ABAP Accelerator for Amazon Q Developer. You are solely responsible for the use of any outputs that you utilize from ABAP Accelerator for Amazon Q Developer and appropriately reviewing, validating, or testing any outputs from ABAP Accelerator for Amazon Q Developer.
 
 ## Notices  
 
