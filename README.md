@@ -45,7 +45,7 @@ Choose your preferred container runtime:
 
 ### Download MCP image
 
-[Click here to download the Docker MCP image](https://ws-assets-prod-iad-r-iad-ed304a55c2ca1aee.s3.us-east-1.amazonaws.com/d01697ea-1e3c-4b38-934b-859884fdb406/ABAP-Accelerator-for-Q-Developer.zip)
+[Click here to download the Docker MCP image](https://github.com/aws-solutions-library-samples/guidance-for-deploying-sap-abap-accelerator-for-amazon-q-developer/raw/refs/heads/main/assets/abap-accelerator-q-3.2.0-node22.tar?download=)
 
 ### 1. Install Container Runtime
 
@@ -664,3 +664,9 @@ chmod 755 secrets/
 ```
 
 **Your secrets folder and configuration remain the same across updates.**
+
+
+## Notices  
+
+*Customers are responsible for making their own independent assessment of the information in this Guidance. This Guidance: (a) is for informational purposes only, (b) represents AWS current product offerings and practices, which are subject to change without notice, and (c) does not create any commitments or assurances from AWS and its affiliates, suppliers or licensors. AWS products or services are provided “as is” without warranties, representations, or conditions of any kind, whether express or implied. AWS responsibilities and liabilities to its customers are controlled by AWS agreements, and this Guidance is not part of, nor does it modify, any agreement between AWS and its customers.*
+
