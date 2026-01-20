@@ -39,7 +39,7 @@ Choose your preferred container runtime:
 
 ### Download MCP image
 
-[Click here to download the Docker MCP image](https://github.com/aws-solutions-library-samples/guidance-for-deploying-sap-abap-accelerator-for-amazon-q-developer/raw/refs/heads/main/assets/abap-accelerator-q-3.2.0-node22.tar?download=)
+[Click here to download the Docker MCP image](https://github.com/aws-solutions-library-samples/guidance-for-deploying-sap-abap-accelerator-for-amazon-q-developer/tree/main/assets)
 
 ### 1. Install Container Runtime
 
