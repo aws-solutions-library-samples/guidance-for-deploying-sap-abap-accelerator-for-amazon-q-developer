@@ -88,6 +88,10 @@ docker --version
 
 Download the container image from the [GitHub assets](https://github.com/aws-solutions-library-samples/guidance-for-deploying-sap-abap-accelerator-for-amazon-q-developer/tree/main/assets) page.
 
+```bash
+wget https://media.githubusercontent.com/media/aws-solutions-library-samples/guidance-for-deploying-sap-abap-accelerator-for-amazon-q-developer/main/assets/abap-accelerator-q-3.2.1-node22.tar
+```
+
 ### Step 3: Load the Container Image
 
 ```bash
