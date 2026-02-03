@@ -162,7 +162,7 @@ docker run --rm -i --platform linux/amd64 ^
   -e SAP_USERNAME=your_username ^
   -e SAP_LANGUAGE=EN ^
   -e SAP_SECURE=true ^
-  abap-accelerator-q-3.2.1-node22 ^
+  abap-accelerator-q:3.2.1-node22 ^
   node dist/index.js
 ```
 </details>
@@ -178,7 +178,7 @@ docker run --rm -i --platform linux/amd64 \
   -e SAP_USERNAME=your_username \
   -e SAP_LANGUAGE=EN \
   -e SAP_SECURE=true \
-  abap-accelerator-q-3.2.1-node22 \
+  abap-accelerator-q:3.2.1-node22 \
   node dist/index.js
 ```
 </details>
@@ -218,7 +218,7 @@ Create `mcp.json` with this content:
         "-e", "SAP_USERNAME=your_username",
         "-e", "SAP_LANGUAGE=EN",
         "-e", "SAP_SECURE=true",
-        "abap-accelerator-q-3.2.1-node22",
+        "abap-accelerator-q:3.2.1-node22",
         "node", "dist/index.js"
       ],
       "timeout": 60000,
@@ -255,7 +255,7 @@ Create `mcp.json` with this content:
         "-e", "SAP_USERNAME=your_username",
         "-e", "SAP_LANGUAGE=EN",
         "-e", "SAP_SECURE=true",
-        "abap-accelerator-q-3.2.1-node22",
+        "abap-accelerator-q:3.2.1-node22",
         "node", "dist/index.js"
       ],
       "timeout": 60000,
@@ -323,7 +323,7 @@ chmod 600 ~/.secrets/ecc/sap_password ~/.secrets/s4hana/sap_password
         "-e", "SAP_USERNAME=ecc_user",
         "-e", "SAP_LANGUAGE=EN",
         "-e", "SAP_SECURE=true",
-        "abap-accelerator-q-3.2.1-node22",
+        "abap-accelerator-q:3.2.1-node22",
         "node", "dist/index.js"
       ],
       "timeout": 60000,
@@ -339,7 +339,7 @@ chmod 600 ~/.secrets/ecc/sap_password ~/.secrets/s4hana/sap_password
         "-e", "SAP_USERNAME=s4_user",
         "-e", "SAP_LANGUAGE=EN",
         "-e", "SAP_SECURE=true",
-        "abap-accelerator-q-3.2.1-node22",
+        "abap-accelerator-q:3.2.1-node22",
         "node", "dist/index.js"
       ],
       "timeout": 60000,
@@ -407,7 +407,7 @@ Once configured, Amazon Q Developer can use these ABAP tools:
 
 | Problem | Solution |
 |---------|----------|
-| `image not found` | Run `docker load -i abap-accelerator-q-3.2.1-node22.tar` again |
+| `image not found` | Run `docker load -i abap-accelerator-q:3.2.1-node22.tar` again |
 | `permission denied` on secrets | Check file permissions: `chmod 600 ~/.secrets/sap/sap_password` |
 | Container exits immediately | Verify SAP_HOST is reachable: `ping your-sap-host.company.com` |
 | `platform mismatch` error | Ensure `--platform linux/amd64` flag is included |
@@ -447,18 +447,18 @@ docker images | grep abap-accelerator-q
 # Test if secrets are mounted correctly
 docker run --rm \
   --mount type=bind,source=/full/path/to/secrets,target=/run/secrets,readonly \
-  abap-accelerator-q-3.2.1-node22 \
+  abap-accelerator-q:3.2.1-node22 \
   ls -la /run/secrets/
 
 # Check password file content inside container
 docker run --rm \
   --mount type=bind,source=/full/path/to/secrets,target=/run/secrets,readonly \
-  abap-accelerator-q-3.2.1-node22 \
+  abap-accelerator-q:3.2.1-node22 \
   cat /run/secrets/sap_password
 
 # Test network connectivity from container
 docker run --rm \
-  abap-accelerator-q-3.2.1-node22 \
+  abap-accelerator-q:3.2.1-node22 \
   ping -c 3 your-sap-system.company.com
 
 # Check system resources
@@ -470,7 +470,7 @@ docker system df
 1. **Wrong path separators** - Use `/` not `\` even on Windows
 2. **Relative paths** - Always use absolute paths for bind mounts
 3. **Missing timeout** - Add `"timeout": 60000` for SAP connections
-4. **Wrong image name** - Ensure exact match: `abap-accelerator-q-3.2.1-node22`
+4. **Wrong image name** - Ensure exact match: `abap-accelerator-q:3.2.1-node22`
 5. **Password in config** - Never put password in MCP config, use secrets folder only
 
 ### Container Management
@@ -544,7 +544,7 @@ Download from [podman.io](https://podman.io/getting-started/installation)
 Replace `docker` with `podman` in all commands:
 
 ```bash
-podman load -i abap-accelerator-q-3.2.1-node22.tar
+podman load -i abap-accelerator-q:3.2.1-node22.tar
 podman images | grep abap-accelerator-q
 ```
 
@@ -584,7 +584,7 @@ See [Finch installation guide](https://github.com/runfinch/finch)
 Replace `docker` with `finch` in all commands:
 
 ```bash
-finch load -i abap-accelerator-q-3.2.1-node22.tar
+finch load -i abap-accelerator-q:3.2.1-node22.tar
 finch images | grep abap-accelerator-q
 ```
 
