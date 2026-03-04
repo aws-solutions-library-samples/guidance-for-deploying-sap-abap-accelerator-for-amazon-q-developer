@@ -4,50 +4,112 @@ Enterprise-grade Model Context Protocol (MCP) server for SAP ABAP development, e
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Deployment Options](#deployment-options)
-- [Environment Guidance](#environment-guidance)
+- [ABAP Accelerator MCP Server](#abap-accelerator-mcp-server)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Deployment Options](#deployment-options)
+  - [Environment Guidance](#environment-guidance)
 - [Option 1: Local Deployment (Without Docker)](#option-1-local-deployment-without-docker)
+  - [Prerequisites](#prerequisites)
+  - [Setup](#setup)
+  - [Environment Variables](#environment-variables)
+  - [Q Developer / Kiro Configuration](#q-developer--kiro-configuration)
 - [Option 2: Local Deployment (With Docker)](#option-2-local-deployment-with-docker)
+  - [Prerequisites](#prerequisites-1)
+  - [Building the Docker Image](#building-the-docker-image)
   - [Loading a Pre-Built Image](#loading-a-pre-built-image)
-- [Option 3: Central Deployment (ECS Fargate)](#option-3-central-deployment-ecs-fargate)
-- [Environment Variables Reference](#environment-variables-reference)
-- [Q Developer Configuration](#q-developer-configuration)
-- [Kiro Configuration](#kiro-configuration)
-- [ECS Fargate Deployment](#ecs-fargate-deployment)
-- [OAuth Authentication Setup](#oauth-authentication-setup-for-principal-propagation)
-- [SAP System Selection](#sap-system-selection)
-- [SAP Port Configuration](#sap-port-configuration)
-- [Available Tools](#available-tools)
-- [Troubleshooting](#troubleshooting)
-- [Security Recommendations](#security-recommendations)
-  - [Authentication & Authorization](#authentication--authorization)
-  - [Secrets Management](#secrets-management)
-  - [Network Security](#network-security)
-  - [Input Validation](#input-validation)
-  - [Audit Logging](#audit-logging)
-  - [Container Security](#container-security)
-  - [Denial of Service Protection](#denial-of-service-protection)
-  - [SAP System Security](#sap-system-security)
-  - [Monitoring & Incident Response](#monitoring--incident-response)
-  - [Compliance Considerations](#compliance-considerations)
-  - [CA Private Key Protection](#ca-private-key-protection)
-  - [SAP Trust Store & Certificate Rule Governance](#sap-trust-store--certificate-rule-governance)
-  - [Code Change Control](#code-change-control)
-  - [Identity Provider Hardening](#identity-provider-hardening)
-  - [Intellectual Property & Data Loss Prevention](#intellectual-property--data-loss-prevention)
-  - [Supply Chain Integrity](#supply-chain-integrity)
-  - [DNS Rebinding Prevention](#dns-rebinding-prevention)
-  - [Denial of Service Resilience](#denial-of-service-resilience)
-  - [LLM Tool Safety & Human Oversight](#llm-tool-safety--human-oversight)
-  - [Assumptions](#assumptions)
-  - [Security Checklist for ECS Based Deployment](#security-checklist-for-ecs-based-deployment)
-- [Configuration Comparison: Local vs ECS](#configuration-comparison-local-vs-ecs)
-- [Code of Conduct](#code-of-conduct)
-- [Support](#support)
-- [Terms of Use](#terms-of-use)
-- [Notices](#notices)
-- [License](#license)
+  - [Deployment Scenarios](#deployment-scenarios)
+    - [Quick Start: Single SAP System with Environment Variables](#quick-start-single-sap-system-with-environment-variables)
+      - [Option A: Standalone HTTP Server](#option-a-standalone-http-server)
+      - [Option B: STDIO Mode (MCP Client Manages the Container)](#option-b-stdio-mode-mcp-client-manages-the-container)
+        - [Step 2: Run Container with Config Mounted](#step-2-run-container-with-config-mounted)
+        - [Step 3: Enter Credentials at Startup](#step-3-enter-credentials-at-startup)
+        - [sap-systems.yaml Location Summary](#sap-systemsyaml-location-summary)
+    - [Option 3: Central Deployment (ECS Fargate)](#option-3-central-deployment-ecs-fargate)
+  - [Environment Variables Reference](#environment-variables-reference)
+    - [Core Server Configuration](#core-server-configuration)
+    - [Credential Provider Options](#credential-provider-options)
+    - [SAP Connection (for `env` credential provider)](#sap-connection-for-env-credential-provider)
+    - [Enterprise Mode (ECS/Production)](#enterprise-mode-ecsproduction)
+    - [SSL/TLS Configuration](#ssltls-configuration)
+    - [OAuth Configuration (Optional)](#oauth-configuration-optional)
+  - [Q Developer Configuration](#q-developer-configuration)
+    - [Local Docker Deployment](#local-docker-deployment)
+      - [Single System](#single-system)
+      - [Multiple Systems](#multiple-systems)
+    - [ECS Fargate Deployment](#ecs-fargate-deployment)
+    - [With OAuth Authentication](#with-oauth-authentication)
+  - [Kiro Configuration](#kiro-configuration)
+    - [Local Deployment](#local-deployment)
+    - [Multiple Systems](#multiple-systems-1)
+    - [ECS/Remote Deployment](#ecsremote-deployment)
+  - [ECS Fargate Deployment](#ecs-fargate-deployment-1)
+    - [Credential Storage: Secrets Manager vs Parameter Store](#credential-storage-secrets-manager-vs-parameter-store)
+      - [AWS Secrets Manager (Sensitive Data)](#aws-secrets-manager-sensitive-data)
+        - [1. CA Certificate (for Principal Propagation)](#1-ca-certificate-for-principal-propagation)
+        - [2. OAuth Client Secret (for Principal Propagation with OAuth)](#2-oauth-client-secret-for-principal-propagation-with-oauth)
+      - [AWS Parameter Store (Non-Sensitive Configuration)](#aws-parameter-store-non-sensitive-configuration)
+        - [1. SAP Endpoints Configuration](#1-sap-endpoints-configuration)
+        - [2. User Exception Mappings (for Principal Propagation)](#2-user-exception-mappings-for-principal-propagation)
+      - [Storage Summary Table](#storage-summary-table)
+    - [Prerequisites](#prerequisites-2)
+    - [Step 1: Push Docker Image to ECR](#step-1-push-docker-image-to-ecr)
+    - [Step 2: Create Secrets and Parameters](#step-2-create-secrets-and-parameters)
+    - [Step 3: Create ECS Task Definition](#step-3-create-ecs-task-definition)
+    - [Step 4: Create IAM Roles](#step-4-create-iam-roles)
+      - [Task Role Policy (for application to access AWS resources)](#task-role-policy-for-application-to-access-aws-resources)
+      - [Execution Role Policy (for ECS to pull images and write logs)](#execution-role-policy-for-ecs-to-pull-images-and-write-logs)
+    - [Step 5: Deploy Service](#step-5-deploy-service)
+  - [OAuth Authentication Setup (for Principal Propagation)](#oauth-authentication-setup-for-principal-propagation)
+    - [Supported Identity Providers](#supported-identity-providers)
+    - [How It Works](#how-it-works)
+    - [AWS Cognito Configuration](#aws-cognito-configuration)
+    - [Okta Configuration](#okta-configuration)
+    - [Microsoft Entra ID Configuration](#microsoft-entra-id-configuration)
+  - [SAP System Selection](#sap-system-selection)
+    - [Example Usage](#example-usage)
+  - [SAP Port Configuration](#sap-port-configuration)
+    - [Local Deployment (sap-systems.yaml)](#local-deployment-sap-systemsyaml)
+    - [ECS Deployment (Parameter Store)](#ecs-deployment-parameter-store)
+  - [Available Tools](#available-tools)
+  - [Troubleshooting](#troubleshooting)
+    - [SSL Certificate Errors](#ssl-certificate-errors)
+    - [Connection Timeout](#connection-timeout)
+    - [OAuth Not Working](#oauth-not-working)
+    - [No User Identity Found](#no-user-identity-found)
+  - [Security Recommendations](#security-recommendations)
+    - [Authentication \& Authorization](#authentication--authorization)
+      - [Local Development](#local-development)
+      - [ECS Based Deployment](#ecs-based-deployment)
+    - [Secrets Management](#secrets-management)
+    - [Network Security](#network-security)
+    - [Input Validation](#input-validation)
+    - [Audit Logging](#audit-logging)
+    - [Container Security](#container-security)
+    - [Denial of Service Protection](#denial-of-service-protection)
+    - [SAP System Security](#sap-system-security)
+    - [Monitoring \& Incident Response](#monitoring--incident-response)
+    - [Compliance Considerations](#compliance-considerations)
+    - [CA Private Key Protection](#ca-private-key-protection)
+    - [SAP Trust Store \& Certificate Rule Governance](#sap-trust-store--certificate-rule-governance)
+    - [Code Change Control](#code-change-control)
+    - [Identity Provider Hardening](#identity-provider-hardening)
+    - [Intellectual Property \& Data Loss Prevention](#intellectual-property--data-loss-prevention)
+    - [Supply Chain Integrity](#supply-chain-integrity)
+    - [DNS Rebinding Prevention](#dns-rebinding-prevention)
+    - [Denial of Service Resilience](#denial-of-service-resilience)
+    - [LLM Tool Safety \& Human Oversight](#llm-tool-safety--human-oversight)
+    - [Assumptions](#assumptions)
+    - [Security Checklist for ECS Based Deployment](#security-checklist-for-ecs-based-deployment)
+      - [Pre-Deployment](#pre-deployment)
+      - [Deployment](#deployment)
+      - [Post-Deployment](#post-deployment)
+  - [Configuration Comparison: Local vs ECS](#configuration-comparison-local-vs-ecs)
+  - [Code of Conduct](#code-of-conduct)
+  - [Support](#support)
+  - [Terms of Use](#terms-of-use)
+  - [Notices](#notices)
+  - [License](#license)
 
 ## Overview
 
@@ -197,7 +259,13 @@ For connecting to a single SAP system using environment variables and a Docker s
 
 Create a `secrets` folder with a file named `sap_password` (no extension) containing only the SAP password.
 
-If your network uses a corporate proxy or internal CA, mount the CA certificate as shown below.
+If your network uses a corporate proxy or internal CA, mount the CA certificate. Export the full certificate chain (root CA + intermediate CA) into a single PEM file.
+
+There are two ways to run the container: as a standalone HTTP server, or as a STDIO process managed by your MCP client.
+
+#### Option A: Standalone HTTP Server
+
+Run the container in a terminal, then point your MCP client at the URL.
 
 **Windows (Command Prompt):**
 ```cmd
@@ -205,6 +273,7 @@ docker run -i --rm -p 8000:8000 --platform linux/amd64 ^
   --mount type=bind,source=C:\path\to\secrets,target=/run/secrets,readonly ^
   --mount type=bind,source=C:\path\to\proxy-ca.crt,target=/app/certs/proxy-ca.crt,readonly ^
   -e CREDENTIAL_PROVIDER=env ^
+  -e DEFAULT_SAP_SYSTEM_ID=DEV_100 ^
   -e SAP_HOST=sap-dev.company.com:44300 ^
   -e SAP_CLIENT=100 ^
   -e SAP_INSTANCE_NUMBER=00 ^
@@ -221,6 +290,7 @@ docker run -i --rm -p 8000:8000 \
   --mount type=bind,source=$(pwd)/secrets,target=/run/secrets,readonly \
   --mount type=bind,source=$(pwd)/proxy-ca.crt,target=/app/certs/proxy-ca.crt,readonly \
   -e CREDENTIAL_PROVIDER=env \
+  -e DEFAULT_SAP_SYSTEM_ID=DEV_100 \
   -e SAP_HOST=sap-dev.company.com:44300 \
   -e SAP_CLIENT=100 \
   -e SAP_INSTANCE_NUMBER=00 \
@@ -231,9 +301,7 @@ docker run -i --rm -p 8000:8000 \
   abap-accelerator-enterprise:latest
 ```
 
-> **Note:** If you don't need a custom CA certificate, remove both the `--mount` for `proxy-ca.crt` and the `CUSTOM_CA_CERT_PATH` variable. The password is read from `/run/secrets/sap_password` inside the container. If you prefer, you can pass it as `-e SAP_PASSWORD=...` instead of using the secrets mount.
-
-Then configure your MCP client:
+MCP client configuration:
 
 ```json
 {
@@ -243,6 +311,48 @@ Then configure your MCP client:
     }
   }
 }
+```
+
+#### Option B: STDIO Mode (MCP Client Manages the Container)
+
+Let Q Developer or Kiro launch and manage the container directly. No separate terminal needed.
+
+Set `MCP_TRANSPORT=stdio` and remove the port mapping (`-p`). The MCP client communicates with the server over stdin/stdout.
+
+MCP client configuration (Windows paths shown — adjust for your OS):
+
+```json
+{
+  "mcpServers": {
+    "abap-accelerator": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--platform", "linux/amd64",
+        "--mount", "type=bind,source=C:\\path\\to\\secrets,target=/run/secrets,readonly",
+        "--mount", "type=bind,source=C:\\path\\to\\proxy-ca.crt,target=/app/certs/proxy-ca.crt,readonly",
+        "-e", "MCP_TRANSPORT=stdio",
+        "-e", "CREDENTIAL_PROVIDER=env",
+        "-e", "DEFAULT_SAP_SYSTEM_ID=DEV_100",
+        "-e", "SAP_HOST=sap-dev.company.com:44300",
+        "-e", "SAP_CLIENT=100",
+        "-e", "SAP_INSTANCE_NUMBER=00",
+        "-e", "SAP_USERNAME=YOUR_USER",
+        "-e", "SAP_LANGUAGE=EN",
+        "-e", "SAP_SECURE=true",
+        "-e", "CUSTOM_CA_CERT_PATH=/app/certs/proxy-ca.crt",
+        "abap-accelerator-enterprise:latest"
+      ],
+      "timeout": 100000
+    }
+  }
+}
+```
+
+> **Notes:**
+> - If you don't need a custom CA certificate, remove both the `--mount` for `proxy-ca.crt` and the `CUSTOM_CA_CERT_PATH` variable.
+> - The password is read from `/run/secrets/sap_password` inside the container. Alternatively, pass it as `-e SAP_PASSWORD=...` (or `"-e", "SAP_PASSWORD=..."` in STDIO mode) instead of using the secrets mount.
+> - `DEFAULT_SAP_SYSTEM_ID` is the identifier used when no system is specified in tool calls. Use a meaningful name like `DEV_100` (system + client).
 ```
 
 ### Scenario A: Single SAP System
@@ -375,13 +485,15 @@ See [ECS Deployment Guide](#ecs-fargate-deployment) for complete setup.
 
 ### Core Server Configuration
 
-| Variable               | Required | Default   | Description                                 |
-| ---------------------- | -------- | --------- | ------------------------------------------- |
-| `SERVER_HOST`          | Yes      | `0.0.0.0` | Server bind address                         |
-| `SERVER_PORT`          | Yes      | `8000`    | Server port                                 |
-| `LOG_LEVEL`            | No       | `INFO`    | Logging level (DEBUG, INFO, WARNING, ERROR) |
-| `CORS_ENABLED`         | No       | `false`   | Enable CORS                                 |
-| `CORS_ALLOWED_ORIGINS` | No       | `*`       | CORS allowed origins                        |
+| Variable                | Required | Default           | Description                                  |
+| ----------------------- | -------- | ----------------- | -------------------------------------------- |
+| `SERVER_HOST`           | Yes      | `0.0.0.0`         | Server bind address                          |
+| `SERVER_PORT`           | Yes      | `8000`            | Server port                                  |
+| `MCP_TRANSPORT`         | No       | `streamable-http` | Transport mode: `streamable-http` or `stdio` |
+| `DEFAULT_SAP_SYSTEM_ID` | No       | `env-<client>`    | Default SAP system identifier for tool calls |
+| `LOG_LEVEL`             | No       | `INFO`            | Logging level (DEBUG, INFO, WARNING, ERROR)  |
+| `CORS_ENABLED`          | No       | `false`           | Enable CORS                                  |
+| `CORS_ALLOWED_ORIGINS`  | No       | `*`               | CORS allowed origins                         |
 
 ### Credential Provider Options
 
