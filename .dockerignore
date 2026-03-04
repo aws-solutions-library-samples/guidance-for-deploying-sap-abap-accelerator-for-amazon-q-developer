@@ -1,0 +1,6 @@
+# Deny everything by default
+**
+
+# Allow only what the build needs
+!requirements.txt
+!src/**

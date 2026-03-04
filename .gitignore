@@ -26,3 +26,4 @@ cdk.out
 
 .env
 
+*.tar.gz

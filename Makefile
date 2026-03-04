@@ -4,7 +4,7 @@ PLATFORM    := linux/amd64
 DOCKERFILE  := Dockerfile.simple
 EXPORT_FILE := $(IMAGE_NAME)-$(IMAGE_TAG).tar.gz
 
-.PHONY: build run export clean
+.PHONY: build run docker-export clean
 
 ## Build the Docker image
 build:
@@ -16,7 +16,7 @@ run:
 		--entrypoint ash $(IMAGE_NAME):$(IMAGE_TAG)
 
 ## Export the built image to a compressed tarball
-export: build
+docker-export: build
 	docker save $(IMAGE_NAME):$(IMAGE_TAG) | gzip > $(EXPORT_FILE)
 	@echo "Exported to $(EXPORT_FILE) ($$(du -h $(EXPORT_FILE) | cut -f1))"
 
