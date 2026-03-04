@@ -13,7 +13,7 @@ build:
 ## Run an interactive shell in the container (host network, root, ash)
 run:
 	docker run --network host --user root --platform $(PLATFORM) --rm -it \
-		--entrypoint ash $(IMAGE_NAME):$(IMAGE_TAG)
+		--entrypoint bash $(IMAGE_NAME):$(IMAGE_TAG)
 
 ## Export the built image to a compressed tarball
 docker-export: build

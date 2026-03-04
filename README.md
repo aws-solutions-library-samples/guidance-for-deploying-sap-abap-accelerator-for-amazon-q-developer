@@ -9,6 +9,7 @@ Enterprise-grade Model Context Protocol (MCP) server for SAP ABAP development, e
 - [Environment Guidance](#environment-guidance)
 - [Option 1: Local Deployment (Without Docker)](#option-1-local-deployment-without-docker)
 - [Option 2: Local Deployment (With Docker)](#option-2-local-deployment-with-docker)
+  - [Loading a Pre-Built Image](#loading-a-pre-built-image)
 - [Option 3: Central Deployment (ECS Fargate)](#option-3-central-deployment-ecs-fargate)
 - [Environment Variables Reference](#environment-variables-reference)
 - [Q Developer Configuration](#q-developer-configuration)
@@ -60,11 +61,11 @@ The ABAP Accelerator provides 15 SAP development tools accessible via MCP protoc
 
 ## Deployment Options
 
-| Option | Use Case | Authentication | Best For |
-|--------|----------|----------------|----------|
-| [1. Local (Without Docker)](#option-1-local-deployment-without-docker) | Development/testing | Interactive credentials | Quick testing, development |
-| [2. Local (With Docker)](#option-2-local-deployment-with-docker) | Development/testing | Interactive credentials | Isolated environment, multi-system |
-| [3. ECS Fargate](#option-3-ecs-fargate-deployment-with-principal-propagation) | Production/multi-user | Principal Propagation + OAuth | Enterprise, multi-user |
+| Option                                                                        | Use Case              | Authentication                | Best For                           |
+| ----------------------------------------------------------------------------- | --------------------- | ----------------------------- | ---------------------------------- |
+| [1. Local (Without Docker)](#option-1-local-deployment-without-docker)        | Development/testing   | Interactive credentials       | Quick testing, development         |
+| [2. Local (With Docker)](#option-2-local-deployment-with-docker)              | Development/testing   | Interactive credentials       | Isolated environment, multi-system |
+| [3. ECS Fargate](#option-3-ecs-fargate-deployment-with-principal-propagation) | Production/multi-user | Principal Propagation + OAuth | Enterprise, multi-user             |
 
 ---
 
@@ -72,14 +73,14 @@ The ABAP Accelerator provides 15 SAP development tools accessible via MCP protoc
 
 The ABAP Accelerator is designed for specific SAP system types. Please follow this guidance when deploying:
 
-| ✅ Intended | ❌ Not Recommended |
-|-------------|-------------------|
-| Development (DEV) | Production (PRD) |
-| Sandbox (SBX) | Pre-production |
-| Quality Assurance (QAS) | |
-| Test (TST) | |
-| Training | |
-| Demo | |
+| ✅ Intended              | ❌ Not Recommended |
+| ----------------------- | ----------------- |
+| Development (DEV)       | Production (PRD)  |
+| Sandbox (SBX)           | Pre-production    |
+| Quality Assurance (QAS) |                   |
+| Test (TST)              |                   |
+| Training                |                   |
+| Demo                    |                   |
 
 **Important:** This tool provides direct access to ABAP development objects and should only be used in non-production environments. Production systems should follow established change management and transport processes.
 
@@ -155,10 +156,33 @@ Run the MCP server in a Docker container for isolated, reproducible deployments.
 
 ```bash
 # Build for AMD64 (Windows/Linux x86)
-docker build -f Dockerfile.simple -t abap-accelerator-enterprise:latest .
+docker build --platform linux/amd64 -f Dockerfile.simple -t abap-accelerator-enterprise:latest .
 
 # Build for ARM64 (Mac M1/M2/M3)
 docker buildx build --platform linux/arm64 -f Dockerfile.simple -t abap-accelerator-enterprise:latest .
+```
+
+A `Makefile` is included for convenience:
+
+```bash
+make build          # Build the image (linux/amd64)
+make run            # Run an interactive shell in the container
+make docker-export  # Build and export to abap-accelerator-enterprise-latest.tar.gz
+make clean          # Remove exported tarball and image
+```
+
+## Loading a Pre-Built Image
+
+If you received a pre-built `abap-accelerator-enterprise-latest.tar.gz` file, load it into your local Docker daemon:
+
+```bash
+docker load < abap-accelerator-enterprise-latest.tar.gz
+```
+
+Verify the image was loaded:
+
+```bash
+docker images abap-accelerator-enterprise:latest
 ```
 
 ## Deployment Scenarios
@@ -263,11 +287,11 @@ System: S4H-QAS (S/4HANA QA System)
 
 ##### sap-systems.yaml Location Summary
 
-| Location | Mount Path | Example |
-|----------|------------|---------|
-| Current directory | `-v $(pwd)/sap-systems.yaml:/app/config/sap-systems.yaml:ro` | `./sap-systems.yaml` |
-| Specific path | `-v /path/to/sap-systems.yaml:/app/config/sap-systems.yaml:ro` | `/home/user/config/sap-systems.yaml` |
-| Windows path | `-v C:\path\to\sap-systems.yaml:/app/config/sap-systems.yaml:ro` | `C:\Users\dev\sap-systems.yaml` |
+| Location          | Mount Path                                                       | Example                              |
+| ----------------- | ---------------------------------------------------------------- | ------------------------------------ |
+| Current directory | `-v $(pwd)/sap-systems.yaml:/app/config/sap-systems.yaml:ro`     | `./sap-systems.yaml`                 |
+| Specific path     | `-v /path/to/sap-systems.yaml:/app/config/sap-systems.yaml:ro`   | `/home/user/config/sap-systems.yaml` |
+| Windows path      | `-v C:\path\to\sap-systems.yaml:/app/config/sap-systems.yaml:ro` | `C:\Users\dev\sap-systems.yaml`      |
 
 **Important:** Always mount as read-only (`:ro`) for security.
 
@@ -293,63 +317,63 @@ See [ECS Deployment Guide](#ecs-fargate-deployment) for complete setup.
 
 ### Core Server Configuration
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `SERVER_HOST` | Yes | `0.0.0.0` | Server bind address |
-| `SERVER_PORT` | Yes | `8000` | Server port |
-| `LOG_LEVEL` | No | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
-| `CORS_ENABLED` | No | `false` | Enable CORS |
-| `CORS_ALLOWED_ORIGINS` | No | `*` | CORS allowed origins |
+| Variable               | Required | Default   | Description                                 |
+| ---------------------- | -------- | --------- | ------------------------------------------- |
+| `SERVER_HOST`          | Yes      | `0.0.0.0` | Server bind address                         |
+| `SERVER_PORT`          | Yes      | `8000`    | Server port                                 |
+| `LOG_LEVEL`            | No       | `INFO`    | Logging level (DEBUG, INFO, WARNING, ERROR) |
+| `CORS_ENABLED`         | No       | `false`   | Enable CORS                                 |
+| `CORS_ALLOWED_ORIGINS` | No       | `*`       | CORS allowed origins                        |
 
 ### Credential Provider Options
 
-| Variable | Value | Description |
-|----------|-------|-------------|
-| `CREDENTIAL_PROVIDER` | `interactive` | Prompt for single SAP system at startup |
+| Variable              | Value               | Description                                  |
+| --------------------- | ------------------- | -------------------------------------------- |
+| `CREDENTIAL_PROVIDER` | `interactive`       | Prompt for single SAP system at startup      |
 | `CREDENTIAL_PROVIDER` | `interactive-multi` | Prompt for multiple systems from config file |
-| `CREDENTIAL_PROVIDER` | `env` | Use SAP_* environment variables |
-| `CREDENTIAL_PROVIDER` | `aws_secrets` | Use AWS Secrets Manager (production) |
+| `CREDENTIAL_PROVIDER` | `env`               | Use SAP_* environment variables              |
+| `CREDENTIAL_PROVIDER` | `aws_secrets`       | Use AWS Secrets Manager (production)         |
 
 ### SAP Connection (for `env` credential provider)
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SAP_HOST` | Yes | SAP system hostname |
-| `SAP_INSTANCE_NUMBER` | Yes | SAP instance number (e.g., 00) |
-| `SAP_CLIENT` | Yes | SAP client number (e.g., 100) |
-| `SAP_USERNAME` | Yes | SAP username |
-| `SAP_PASSWORD` | Yes | SAP password |
-| `SAP_LANGUAGE` | No | SAP language (default: EN) |
-| `SAP_SECURE` | No | Use HTTPS (default: true) |
+| Variable              | Required | Description                    |
+| --------------------- | -------- | ------------------------------ |
+| `SAP_HOST`            | Yes      | SAP system hostname            |
+| `SAP_INSTANCE_NUMBER` | Yes      | SAP instance number (e.g., 00) |
+| `SAP_CLIENT`          | Yes      | SAP client number (e.g., 100)  |
+| `SAP_USERNAME`        | Yes      | SAP username                   |
+| `SAP_PASSWORD`        | Yes      | SAP password                   |
+| `SAP_LANGUAGE`        | No       | SAP language (default: EN)     |
+| `SAP_SECURE`          | No       | Use HTTPS (default: true)      |
 
 ### Enterprise Mode (ECS/Production)
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ENABLE_ENTERPRISE_MODE` | Yes | `false` | Enable multi-tenancy and usage tracking |
-| `ENABLE_PRINCIPAL_PROPAGATION` | Yes | `false` | Enable X.509 certificate authentication |
-| `DEFAULT_SAP_SYSTEM_ID` | Recommended | - | Default SAP system when not specified |
-| `DEFAULT_USER_ID` | Recommended | - | Default user identity |
+| Variable                       | Required    | Default | Description                             |
+| ------------------------------ | ----------- | ------- | --------------------------------------- |
+| `ENABLE_ENTERPRISE_MODE`       | Yes         | `false` | Enable multi-tenancy and usage tracking |
+| `ENABLE_PRINCIPAL_PROPAGATION` | Yes         | `false` | Enable X.509 certificate authentication |
+| `DEFAULT_SAP_SYSTEM_ID`        | Recommended | -       | Default SAP system when not specified   |
+| `DEFAULT_USER_ID`              | Recommended | -       | Default user identity                   |
 
 ### SSL/TLS Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SSL_VERIFY` | `true` | Set to `false` to disable SSL verification (testing only) |
-| `CUSTOM_CA_CERT_PATH` | - | Path to custom CA certificate for corporate CAs |
+| Variable              | Default | Description                                               |
+| --------------------- | ------- | --------------------------------------------------------- |
+| `SSL_VERIFY`          | `true`  | Set to `false` to disable SSL verification (testing only) |
+| `CUSTOM_CA_CERT_PATH` | -       | Path to custom CA certificate for corporate CAs           |
 
 ### OAuth Configuration (Optional)
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ENABLE_OAUTH_FLOW` | No | Enable OAuth authentication flow |
-| `OAUTH_ISSUER` | If OAuth | OIDC issuer URL |
-| `OAUTH_AUTH_ENDPOINT` | If OAuth | Authorization endpoint |
-| `OAUTH_TOKEN_ENDPOINT` | If OAuth | Token endpoint |
-| `OAUTH_CLIENT_ID` | If OAuth | OAuth client ID |
-| `OAUTH_CLIENT_SECRET` | No | OAuth client secret (for confidential clients) |
-| `OAUTH_REDIRECT_URI` | No | OAuth callback URL |
-| `SERVER_BASE_URL` | If OAuth | MCP server public URL |
+| Variable               | Required | Description                                    |
+| ---------------------- | -------- | ---------------------------------------------- |
+| `ENABLE_OAUTH_FLOW`    | No       | Enable OAuth authentication flow               |
+| `OAUTH_ISSUER`         | If OAuth | OIDC issuer URL                                |
+| `OAUTH_AUTH_ENDPOINT`  | If OAuth | Authorization endpoint                         |
+| `OAUTH_TOKEN_ENDPOINT` | If OAuth | Token endpoint                                 |
+| `OAUTH_CLIENT_ID`      | If OAuth | OAuth client ID                                |
+| `OAUTH_CLIENT_SECRET`  | No       | OAuth client secret (for confidential clients) |
+| `OAUTH_REDIRECT_URI`   | No       | OAuth callback URL                             |
+| `SERVER_BASE_URL`      | If OAuth | MCP server public URL                          |
 
 ---
 
@@ -480,10 +504,10 @@ Add to your Kiro MCP configuration (`.kiro/settings/mcp.json`):
 
 When deploying on ECS Fargate, sensitive and non-sensitive configuration data are stored separately:
 
-| Storage | What to Store | Why |
-|---------|---------------|-----|
-| **AWS Secrets Manager** | CA certificates, private keys, OAuth client secrets | Encrypted, access-controlled, audit logged |
-| **AWS Parameter Store** | SAP endpoints, user mappings, non-sensitive config | Cost-effective, easy to update, version controlled |
+| Storage                 | What to Store                                       | Why                                                |
+| ----------------------- | --------------------------------------------------- | -------------------------------------------------- |
+| **AWS Secrets Manager** | CA certificates, private keys, OAuth client secrets | Encrypted, access-controlled, audit logged         |
+| **AWS Parameter Store** | SAP endpoints, user mappings, non-sensitive config  | Cost-effective, easy to update, version controlled |
 
 #### AWS Secrets Manager (Sensitive Data)
 
@@ -611,12 +635,12 @@ exceptions:
 
 #### Storage Summary Table
 
-| Data | Storage | Parameter/Secret Name | Required |
-|------|---------|----------------------|----------|
-| CA Certificate + Private Key | Secrets Manager | `abap-accelerator/ca-certificate` | Yes (for Principal Propagation) |
-| OAuth Client Secret | Secrets Manager | `abap-accelerator/oauth-client-secret` | Yes (if IdP requires client secret) |
-| SAP Endpoints | Parameter Store | `/abap-accelerator/sap-endpoints` | Yes |
-| User Exception Mappings | Parameter Store | `/abap-accelerator/user-exceptions` | Optional |
+| Data                         | Storage         | Parameter/Secret Name                  | Required                            |
+| ---------------------------- | --------------- | -------------------------------------- | ----------------------------------- |
+| CA Certificate + Private Key | Secrets Manager | `abap-accelerator/ca-certificate`      | Yes (for Principal Propagation)     |
+| OAuth Client Secret          | Secrets Manager | `abap-accelerator/oauth-client-secret` | Yes (if IdP requires client secret) |
+| SAP Endpoints                | Parameter Store | `/abap-accelerator/sap-endpoints`      | Yes                                 |
+| User Exception Mappings      | Parameter Store | `/abap-accelerator/user-exceptions`    | Optional                            |
 
 ### Prerequisites
 
@@ -876,11 +900,11 @@ Get objects from package ZTEST in system S4H-100
 SAP systems use different ports based on the instance number:
 
 | Instance Number | HTTPS Port | HTTP Port |
-|-----------------|------------|-----------|
-| 00 | 44300 | 8000 |
-| 01 | 44301 | 8001 |
-| 02 | 44302 | 8002 |
-| 10 | 44310 | 8010 |
+| --------------- | ---------- | --------- |
+| 00              | 44300      | 8000      |
+| 01              | 44301      | 8001      |
+| 02              | 44302      | 8002      |
+| 10              | 44310      | 8010      |
 
 **Formula:**
 - HTTPS: `44300 + instance_number`
@@ -920,23 +944,23 @@ endpoints:
 
 ## Available Tools
 
-| Tool | Description |
-|------|-------------|
-| `aws_abap_cb_connection_status` | Check SAP connection status |
-| `aws_abap_cb_get_objects` | List ABAP objects in a package |
-| `aws_abap_cb_get_source` | Get source code of an object |
-| `aws_abap_cb_search_object` | Search for ABAP objects |
-| `aws_abap_cb_create_object` | Create new ABAP object |
-| `aws_abap_cb_update_source` | Update source code |
-| `aws_abap_cb_check_syntax` | Check syntax of source code |
-| `aws_abap_cb_activate_object` | Activate ABAP object |
-| `aws_abap_cb_run_atc_check` | Run ATC quality checks |
-| `aws_abap_cb_run_unit_tests` | Execute unit tests |
-| `aws_abap_cb_get_test_classes` | Get test classes for an object |
-| `aws_abap_cb_get_migration_analysis` | Get migration analysis |
-| `aws_abap_cb_create_or_update_test_class` | Create/update test class |
-| `aws_abap_cb_activate_objects_batch` | Batch activate objects |
-| `aws_abap_cb_get_transport_requests` | Get transport requests |
+| Tool                                      | Description                    |
+| ----------------------------------------- | ------------------------------ |
+| `aws_abap_cb_connection_status`           | Check SAP connection status    |
+| `aws_abap_cb_get_objects`                 | List ABAP objects in a package |
+| `aws_abap_cb_get_source`                  | Get source code of an object   |
+| `aws_abap_cb_search_object`               | Search for ABAP objects        |
+| `aws_abap_cb_create_object`               | Create new ABAP object         |
+| `aws_abap_cb_update_source`               | Update source code             |
+| `aws_abap_cb_check_syntax`                | Check syntax of source code    |
+| `aws_abap_cb_activate_object`             | Activate ABAP object           |
+| `aws_abap_cb_run_atc_check`               | Run ATC quality checks         |
+| `aws_abap_cb_run_unit_tests`              | Execute unit tests             |
+| `aws_abap_cb_get_test_classes`            | Get test classes for an object |
+| `aws_abap_cb_get_migration_analysis`      | Get migration analysis         |
+| `aws_abap_cb_create_or_update_test_class` | Create/update test class       |
+| `aws_abap_cb_activate_objects_batch`      | Batch activate objects         |
+| `aws_abap_cb_get_transport_requests`      | Get transport requests         |
 
 ---
 
@@ -1208,16 +1232,16 @@ The following assumptions underpin the security posture of this system. If any a
 
 ## Configuration Comparison: Local vs ECS
 
-| Aspect | Local (Docker) | ECS Fargate |
-|--------|----------------|-------------|
-| **SAP Systems Config** | `sap-systems.yaml` file mounted to container | AWS Parameter Store (`/abap-accelerator/sap-endpoints`) |
-| **SAP Authentication** | Interactive credentials (basic auth) | Principal Propagation (X.509 certificates) |
-| **User Identity** | Manual input at startup | OAuth/OIDC (Cognito, Okta, Entra ID) |
-| **CA Certificate** | Not needed | AWS Secrets Manager (`abap-accelerator/ca-certificate`) |
-| **OAuth Client Secret** | Not needed | AWS Secrets Manager (`abap-accelerator/oauth-client-secret`) |
-| **Multi-tenancy** | Via `x-sap-system-id` header | Via `x-sap-system-id` header + user isolation |
-| **Credential Provider** | `interactive` or `interactive-multi` | `aws_secrets` |
-| **Principal Propagation** | `false` | `true` |
+| Aspect                    | Local (Docker)                               | ECS Fargate                                                  |
+| ------------------------- | -------------------------------------------- | ------------------------------------------------------------ |
+| **SAP Systems Config**    | `sap-systems.yaml` file mounted to container | AWS Parameter Store (`/abap-accelerator/sap-endpoints`)      |
+| **SAP Authentication**    | Interactive credentials (basic auth)         | Principal Propagation (X.509 certificates)                   |
+| **User Identity**         | Manual input at startup                      | OAuth/OIDC (Cognito, Okta, Entra ID)                         |
+| **CA Certificate**        | Not needed                                   | AWS Secrets Manager (`abap-accelerator/ca-certificate`)      |
+| **OAuth Client Secret**   | Not needed                                   | AWS Secrets Manager (`abap-accelerator/oauth-client-secret`) |
+| **Multi-tenancy**         | Via `x-sap-system-id` header                 | Via `x-sap-system-id` header + user isolation                |
+| **Credential Provider**   | `interactive` or `interactive-multi`         | `aws_secrets`                                                |
+| **Principal Propagation** | `false`                                      | `true`                                                       |
 
 ---
 
