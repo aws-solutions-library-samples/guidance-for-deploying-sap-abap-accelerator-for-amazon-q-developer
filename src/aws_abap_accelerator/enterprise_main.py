@@ -616,7 +616,6 @@ def _initialize_interactive_credentials() -> bool:
         # For 'env' provider: load SAP_* env vars into the in-memory keychain
         # so the enterprise tool path (_get_sap_client_keychain) can find them.
         if credential_provider == "env":
-            from config.settings import load_sap_connection_settings
             from utils.secret_reader import SecretReader
 
             sap_host = os.getenv("SAP_HOST", "")

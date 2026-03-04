@@ -191,6 +191,60 @@ docker images abap-accelerator-enterprise:latest
 
 ## Deployment Scenarios
 
+### Quick Start: Single SAP System with Environment Variables
+
+For connecting to a single SAP system using environment variables and a Docker secret for the password.
+
+Create a `secrets` folder with a file named `sap_password` (no extension) containing only the SAP password.
+
+If your network uses a corporate proxy or internal CA, mount the CA certificate as shown below.
+
+**Windows (Command Prompt):**
+```cmd
+docker run -i --rm -p 8000:8000 --platform linux/amd64 ^
+  --mount type=bind,source=C:\path\to\secrets,target=/run/secrets,readonly ^
+  --mount type=bind,source=C:\path\to\proxy-ca.crt,target=/app/certs/proxy-ca.crt,readonly ^
+  -e CREDENTIAL_PROVIDER=env ^
+  -e SAP_HOST=sap-dev.company.com:44300 ^
+  -e SAP_CLIENT=100 ^
+  -e SAP_INSTANCE_NUMBER=00 ^
+  -e SAP_USERNAME=YOUR_USER ^
+  -e SAP_LANGUAGE=EN ^
+  -e SAP_SECURE=true ^
+  -e CUSTOM_CA_CERT_PATH=/app/certs/proxy-ca.crt ^
+  abap-accelerator-enterprise:latest
+```
+
+**Mac / Linux:**
+```bash
+docker run -i --rm -p 8000:8000 \
+  --mount type=bind,source=$(pwd)/secrets,target=/run/secrets,readonly \
+  --mount type=bind,source=$(pwd)/proxy-ca.crt,target=/app/certs/proxy-ca.crt,readonly \
+  -e CREDENTIAL_PROVIDER=env \
+  -e SAP_HOST=sap-dev.company.com:44300 \
+  -e SAP_CLIENT=100 \
+  -e SAP_INSTANCE_NUMBER=00 \
+  -e SAP_USERNAME=YOUR_USER \
+  -e SAP_LANGUAGE=EN \
+  -e SAP_SECURE=true \
+  -e CUSTOM_CA_CERT_PATH=/app/certs/proxy-ca.crt \
+  abap-accelerator-enterprise:latest
+```
+
+> **Note:** If you don't need a custom CA certificate, remove both the `--mount` for `proxy-ca.crt` and the `CUSTOM_CA_CERT_PATH` variable. The password is read from `/run/secrets/sap_password` inside the container. If you prefer, you can pass it as `-e SAP_PASSWORD=...` instead of using the secrets mount.
+
+Then configure your MCP client:
+
+```json
+{
+  "mcpServers": {
+    "abap-accelerator": {
+      "url": "http://localhost:8000/mcp"
+    }
+  }
+}
+```
+
 ### Scenario A: Single SAP System
 
 For connecting to a single SAP system with interactive credential input.
