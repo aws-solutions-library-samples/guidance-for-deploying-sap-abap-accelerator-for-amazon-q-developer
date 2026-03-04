@@ -499,13 +499,16 @@ class EnterpriseABAPAcceleratorServer:
             )
 
         try:
-            # Use FastMCP's Streamable HTTP transport for Q Developer
-            self.mcp.run(
-                transport=transport,
-                host=self.settings.server.host,
-                port=self.settings.server.port,
-                stateless_http=True,
-            )
+            if transport == "stdio":
+                self.mcp.run(transport="stdio")
+            else:
+                # Use FastMCP's Streamable HTTP transport for Q Developer
+                self.mcp.run(
+                    transport=transport,
+                    host=self.settings.server.host,
+                    port=self.settings.server.port,
+                    stateless_http=True,
+                )
         except KeyboardInterrupt:
             logger.info("Server interrupted by user")
         except Exception as e:
@@ -724,17 +727,25 @@ def main():
         # Create enhanced server
         server = EnterpriseABAPAcceleratorServer(settings)
 
-        # Run server with same transport as original
-        logger.info(
-            "SERVER: Starting HTTP server with Streamable HTTP transport for Q Developer..."
-        )
-        logger.info(
-            f"SERVER: Server will be available at: http://{settings.server.host}:{settings.server.port}"
-        )
-        logger.info(
-            "SERVER: Multi-tenant: Each HTTP request can have different user/system context via headers"
-        )
-        server.run("streamable-http")
+        # Run server
+        transport = os.getenv("MCP_TRANSPORT", "streamable-http").lower()
+
+        if transport == "stdio":
+            logger.info(
+                "SERVER: Starting in STDIO transport mode (for MCP client managed lifecycle)"
+            )
+        else:
+            logger.info(
+                "SERVER: Starting HTTP server with Streamable HTTP transport for Q Developer..."
+            )
+            logger.info(
+                f"SERVER: Server will be available at: http://{settings.server.host}:{settings.server.port}"
+            )
+            logger.info(
+                "SERVER: Multi-tenant: Each HTTP request can have different user/system context via headers"
+            )
+
+        server.run(transport)
 
     except KeyboardInterrupt:
         logger.info("👋 Server stopped by user")
