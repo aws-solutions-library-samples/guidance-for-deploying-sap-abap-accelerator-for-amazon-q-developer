@@ -1,0 +1,47 @@
+[project]
+name = "aws-abap-accelerator"
+version = "1.0.0"
+description = "MCP Server for SAP ABAP development with Amazon Q Developer"
+requires-python = ">=3.12"
+dependencies = [
+    # Core Web Framework
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "starlette>=0.27.0",
+    # HTTP Clients
+    "aiohttp>=3.9.0",
+    "requests>=2.31.0",
+    "httpx>=0.25.0",
+    # MCP Framework
+    "fastmcp~=3.1.0",
+    # Security and Encryption
+    "cryptography>=41.0.0",
+    "keyring>=24.0.0",
+    # AWS SDK
+    "boto3>=1.34.0",
+    "botocore>=1.34.0",
+    # OAuth/JWT
+    "PyJWT>=2.8.0",
+    # Configuration and Environment
+    "python-dotenv>=1.0.0",
+    "PyYAML>=6.0.0",
+    # XML Processing (secure)
+    "defusedxml>=0.7.1",
+    "xmltodict>=0.13.0",
+    # Logging
+    "structlog>=23.2.0",
+    "loguru>=0.7.2",
+    # Async Support
+    "aiofiles>=23.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.7.0",
+]

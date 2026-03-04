@@ -2,5 +2,6 @@
 **
 
 # Allow only what the build needs
-!requirements.txt
+!pyproject.toml
+!uv.lock
 !src/**

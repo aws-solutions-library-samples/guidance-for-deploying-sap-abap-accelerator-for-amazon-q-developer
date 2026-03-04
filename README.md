@@ -176,7 +176,11 @@ make clean          # Remove exported tarball and image
 If you received a pre-built `abap-accelerator-enterprise-latest.tar.gz` file, load it into your local Docker daemon:
 
 ```bash
+# Mac / Linux / PowerShell
 docker load < abap-accelerator-enterprise-latest.tar.gz
+
+# Windows (Command Prompt)
+docker load -i abap-accelerator-enterprise-latest.tar.gz
 ```
 
 Verify the image was loaded:
