@@ -612,6 +612,46 @@ def _initialize_interactive_credentials() -> bool:
     elif credential_provider in ("env", "keychain", "aws_secrets"):
         # These providers don't need interactive prompt
         logger.info(f"AUTH: Using credential provider: {credential_provider}")
+
+        # For 'env' provider: load SAP_* env vars into the in-memory keychain
+        # so the enterprise tool path (_get_sap_client_keychain) can find them.
+        if credential_provider == "env":
+            from config.settings import load_sap_connection_settings
+            from utils.secret_reader import SecretReader
+
+            sap_host = os.getenv("SAP_HOST", "")
+            sap_client = os.getenv("SAP_CLIENT", "")
+            sap_username = os.getenv("SAP_USERNAME", "")
+            sap_password = (
+                SecretReader.get_secret_or_env("sap_password", "SAP_PASSWORD") or ""
+            )
+            sap_language = os.getenv("SAP_LANGUAGE", "EN")
+            sap_instance = os.getenv("SAP_INSTANCE_NUMBER", "00")
+
+            if sap_host and sap_username:
+                # Build a system identifier from host + client
+                system_id = os.getenv("DEFAULT_SAP_SYSTEM_ID", f"env-{sap_client}")
+                credential_data = {
+                    "sap_host": sap_host,
+                    "sap_client": sap_client,
+                    "sap_username": sap_username,
+                    "sap_password": sap_password,
+                    "sap_language": sap_language,
+                    "sap_instance_number": sap_instance,
+                    "sap_secure": os.getenv("SAP_SECURE", "true"),
+                }
+                import json
+
+                keychain_manager._memory_store[system_id] = json.dumps(credential_data)
+                os.environ.setdefault("DEFAULT_SAP_SYSTEM_ID", system_id)
+                logger.info(
+                    f"AUTH: Loaded env credentials into keychain as '{system_id}' for {sap_username}@{sap_host}"
+                )
+            else:
+                logger.warning(
+                    "AUTH: CREDENTIAL_PROVIDER=env but SAP_HOST or SAP_USERNAME not set"
+                )
+
         return True
 
     else:
