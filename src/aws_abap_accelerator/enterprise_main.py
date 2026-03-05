@@ -315,18 +315,20 @@ class EnterpriseABAPAcceleratorServer:
         # Try to get FastMCP OAuth provider first (NEW approach)
         oauth_provider = get_fastmcp_oauth_provider()
         
+        # Set stateless_http via env var (required by newer fastmcp versions)
+        os.environ['FASTMCP_STATELESS_HTTP'] = 'true'
+        
         if oauth_provider:
             logger.info("OAuth: Using FastMCP's built-in OAuth (OAuthProxy)")
             # Initialize FastMCP with OAuth
             self.mcp = FastMCP(
                 name="ABAP-Accelerator-Enterprise",
-                stateless_http=True,
                 auth=oauth_provider  # FastMCP handles OAuth flow!
             )
         else:
             logger.info("OAuth: FastMCP OAuth not configured, using stateless HTTP")
             # Initialize FastMCP without OAuth (backward compatible)
-            self.mcp = FastMCP("ABAP-Accelerator-Enterprise", stateless_http=True)
+            self.mcp = FastMCP("ABAP-Accelerator-Enterprise")
             
             # Try legacy OAuth manager (OLD approach - for backward compatibility)
             oauth_mgr = get_oauth_manager()
