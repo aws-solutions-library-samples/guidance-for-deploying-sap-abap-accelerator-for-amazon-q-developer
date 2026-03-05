@@ -75,31 +75,26 @@ class ABAPAcceleratorServer:
         
         # Connection status tool
         @self.mcp.tool()
-        def aws_abap_cb_connection_status() -> str:
+        async def aws_abap_cb_connection_status() -> str:
             """Check SAP connection status"""
-            async def check_connection():
-                # Attempt connection if not already connected
-                if not self.connected:
-                    try:
-                        await self._ensure_connected()
-                    except Exception as e:
-                        logger.error(f"Connection attempt failed: {sanitize_for_logging(str(e))}")
-                
-                return self.tool_handlers.handle_connection_status(self.connected)
+            # Attempt connection if not already connected
+            if not self.connected:
+                try:
+                    await self._ensure_connected()
+                except Exception as e:
+                    logger.error(f"Connection attempt failed: {sanitize_for_logging(str(e))}")
             
-            return asyncio.create_task(check_connection())
+            return self.tool_handlers.handle_connection_status(self.connected)
         
         # Get objects tool
         @self.mcp.tool()
-        def aws_abap_cb_get_objects(package_name: Optional[str] = None) -> str:
+        async def aws_abap_cb_get_objects(package_name: Optional[str] = None) -> str:
             """Get ABAP objects from SAP system"""
-            return asyncio.create_task(
-                self.tool_handlers.handle_get_objects(package_name)
-            )
+            return await self.tool_handlers.handle_get_objects(package_name)
         
         # Create object tool
         @self.mcp.tool()
-        def aws_abap_cb_create_object(
+        async def aws_abap_cb_create_object(
             name: str,
             type: str,
             description: str,
@@ -136,36 +131,32 @@ class ABAPAcceleratorServer:
             Returns:
                 Success/error message
             """
-            return asyncio.create_task(
-                self.tool_handlers.handle_create_object({
-                    'name': name,
-                    'type': type,
-                    'description': description,
-                    'package_name': package_name or "$TMP",  # Default to $TMP if not provided
-                    'source_code': source_code,
-                    'service_definition': service_definition,
-                    'binding_type': binding_type,
-                    'behavior_definition': behavior_definition,
-                    'is_test_class': is_test_class,
-                    'interfaces': interfaces,
-                    'super_class': super_class,
-                    'visibility': visibility,
-                    'methods': methods,
-                    'transport_request': transport_request
-                })
-            )
+            return await self.tool_handlers.handle_create_object({
+                'name': name,
+                'type': type,
+                'description': description,
+                'package_name': package_name or "$TMP",  # Default to $TMP if not provided
+                'source_code': source_code,
+                'service_definition': service_definition,
+                'binding_type': binding_type,
+                'behavior_definition': behavior_definition,
+                'is_test_class': is_test_class,
+                'interfaces': interfaces,
+                'super_class': super_class,
+                'visibility': visibility,
+                'methods': methods,
+                'transport_request': transport_request
+            })
         
         # Get source tool
         @self.mcp.tool()
-        def aws_abap_cb_get_source(object_name: str, object_type: str, explanation: Optional[str] = None) -> Dict[str, Any]:
+        async def aws_abap_cb_get_source(object_name: str, object_type: str, explanation: Optional[str] = None) -> Dict[str, Any]:
             """Get source code of ABAP object"""
-            return asyncio.create_task(
-                self.tool_handlers.handle_get_source(object_name, object_type)
-            )
+            return await self.tool_handlers.handle_get_source(object_name, object_type)
         
         # Update source tool
         @self.mcp.tool()
-        def aws_abap_cb_update_source(
+        async def aws_abap_cb_update_source(
             object_name: str,
             object_type: str,
             source_code: Optional[str] = None,
@@ -173,59 +164,51 @@ class ABAPAcceleratorServer:
             add_interface: Optional[str] = None
         ) -> str:
             """Update source code of ABAP object"""
-            return asyncio.create_task(
-                self.tool_handlers.handle_update_source({
-                    'object_name': object_name,
-                    'object_type': object_type,
-                    'source_code': source_code,
-                    'methods': methods,
-                    'add_interface': add_interface
-                })
-            )
+            return await self.tool_handlers.handle_update_source({
+                'object_name': object_name,
+                'object_type': object_type,
+                'source_code': source_code,
+                'methods': methods,
+                'add_interface': add_interface
+            })
         
         # Check syntax tool
         @self.mcp.tool()
-        def aws_abap_cb_check_syntax(
+        async def aws_abap_cb_check_syntax(
             object_name: str,
             object_type: str,
             source_code: Optional[str] = None
         ) -> str:
             """Check syntax of ABAP object source code"""
-            return asyncio.create_task(
-                self.tool_handlers.handle_check_syntax(object_name, object_type, source_code)
-            )
+            return await self.tool_handlers.handle_check_syntax(object_name, object_type, source_code)
         
         # Activate object tool
         @self.mcp.tool()
-        def aws_abap_cb_activate_object(
+        async def aws_abap_cb_activate_object(
             object_name: Optional[str] = None,
             object_type: Optional[str] = None,
             objects: Optional[List[Dict[str, str]]] = None
         ) -> str:
             """Activate one or more ABAP objects after syntax check. Supports both single object and batch activation."""
-            return asyncio.create_task(
-                self.tool_handlers.handle_activate_object({
-                    'object_name': object_name,
-                    'object_type': object_type,
-                    'objects': objects
-                })
-            )
+            return await self.tool_handlers.handle_activate_object({
+                'object_name': object_name,
+                'object_type': object_type,
+                'objects': objects
+            })
 
         # Batch activate objects tool (for circular dependencies)
         @self.mcp.tool()
-        def aws_abap_cb_activate_objects_batch(
+        async def aws_abap_cb_activate_objects_batch(
             objects: List[Dict[str, str]]
         ) -> str:
             """Activate multiple ABAP objects in a single batch request to resolve circular dependencies. Each object should have 'name' and 'type' fields. This uses SAP's batch activation endpoint which can handle circular dependencies between objects."""
-            return asyncio.create_task(
-                self.tool_handlers.handle_activate_objects_batch({
-                    'objects': objects
-                })
-            )
+            return await self.tool_handlers.handle_activate_objects_batch({
+                'objects': objects
+            })
         
         # Run ATC check tool
         @self.mcp.tool()
-        def aws_abap_cb_run_atc_check(
+        async def aws_abap_cb_run_atc_check(
             object_name: Optional[str] = None,
             object_type: Optional[str] = None,
             package_name: Optional[str] = None,
@@ -236,55 +219,47 @@ class ABAPAcceleratorServer:
             summary_mode: Optional[bool] = False
         ) -> str:
             """Run ATC (ABAP Test Cockpit) check on object"""
-            return asyncio.create_task(
-                self.tool_handlers.handle_run_atc_check(ATCCheckArgs(
-                    object_name=object_name,
-                    object_type=object_type,
-                    package_name=package_name,
-                    include_subpackages=include_subpackages,
-                    transport_number=transport_number,
-                    variant=variant,
-                    include_documentation=include_documentation
-                ), summary_mode=summary_mode)
-            )
+            return await self.tool_handlers.handle_run_atc_check(ATCCheckArgs(
+                object_name=object_name,
+                object_type=object_type,
+                package_name=package_name,
+                include_subpackages=include_subpackages,
+                transport_number=transport_number,
+                variant=variant,
+                include_documentation=include_documentation
+            ), summary_mode=summary_mode)
         
         # Run unit tests tool
         @self.mcp.tool()
-        def aws_abap_cb_run_unit_tests(
+        async def aws_abap_cb_run_unit_tests(
             object_name: str,
             object_type: Optional[str] = "CLAS",
             with_coverage: Optional[bool] = False
         ) -> str:
             """Run unit tests for ABAP object"""
-            return asyncio.create_task(
-                self.tool_handlers.handle_run_unit_tests(object_name, object_type, with_coverage)
-            )
+            return await self.tool_handlers.handle_run_unit_tests(object_name, object_type, with_coverage)
         
         # Create or update test class tool
         @self.mcp.tool()
-        def aws_abap_cb_create_or_update_test_class(
+        async def aws_abap_cb_create_or_update_test_class(
             class_name: str,
             methods: List[Dict[str, Any]]
         ) -> str:
             """Create or update unit test class in /includes/testclasses of existing ABAP class"""
-            return asyncio.create_task(
-                self.tool_handlers.handle_create_or_update_test_class(class_name, methods)
-            )
+            return await self.tool_handlers.handle_create_or_update_test_class(class_name, methods)
         
         # Get test classes tool
         @self.mcp.tool()
-        def aws_abap_cb_get_test_classes(
+        async def aws_abap_cb_get_test_classes(
             class_name: str,
             object_type: Optional[str] = "CLAS"
         ) -> str:
             """Get source code of test classes for an ABAP class"""
-            return asyncio.create_task(
-                self.tool_handlers.handle_get_test_classes(class_name, object_type)
-            )
+            return await self.tool_handlers.handle_get_test_classes(class_name, object_type)
         
         # Search object tool
         @self.mcp.tool()
-        def aws_abap_cb_search_object(
+        async def aws_abap_cb_search_object(
             query: str,
             object_type: Optional[str] = None,
             package_name: Optional[str] = None,
@@ -292,30 +267,26 @@ class ABAPAcceleratorServer:
             include_inactive: Optional[bool] = False
         ) -> str:
             """Search for ABAP objects in SAP system using various criteria"""
-            return asyncio.create_task(
-                self.tool_handlers.handle_search_object({
-                    'query': query,
-                    'object_type': object_type,
-                    'package_name': package_name,
-                    'max_results': max_results,
-                    'include_inactive': include_inactive
-                })
-            )
+            return await self.tool_handlers.handle_search_object({
+                'query': query,
+                'object_type': object_type,
+                'package_name': package_name,
+                'max_results': max_results,
+                'include_inactive': include_inactive
+            })
         
         # Get migration analysis tool
         @self.mcp.tool()
-        def aws_abap_cb_get_migration_analysis(
+        async def aws_abap_cb_get_migration_analysis(
             object_name: str,
             object_type: str
         ) -> str:
             """Get custom code migration analysis for an ABAP object"""
-            return asyncio.create_task(
-                self.tool_handlers.handle_get_migration_analysis(object_name, object_type)
-            )
+            return await self.tool_handlers.handle_get_migration_analysis(object_name, object_type)
         
         # Get transport requests tool
         @self.mcp.tool()
-        def aws_abap_cb_get_transport_requests(
+        async def aws_abap_cb_get_transport_requests(
             username: Optional[str] = None
         ) -> str:
             """Get transport requests for a user
@@ -326,9 +297,7 @@ class ABAPAcceleratorServer:
             Returns:
                 Detailed transport request information including tasks and objects
             """
-            return asyncio.create_task(
-                self.tool_handlers.handle_get_transport_requests(username)
-            )
+            return await self.tool_handlers.handle_get_transport_requests(username)
         
         logger.info("MCP tools registered successfully")
     
@@ -354,7 +323,7 @@ class ABAPAcceleratorServer:
             
             logger.info("Successfully connected to SAP system")
     
-    def run_sync(self, transport: str = "sse") -> None:
+    def run_sync(self, transport: str = "streamable-http") -> None:
         """Run the MCP server asynchronously"""
         # Set up MCP
         self._setup_mcp()
@@ -375,15 +344,15 @@ class ABAPAcceleratorServer:
             finally:
                 logger.info("Server stopped")
         else:
-            # Log startup for SSE/HTTP
+            # Log startup for Streamable HTTP
             logger.info(
                 f"Starting ABAP-Accelerator MCP server on {self.settings.server.host}:{self.settings.server.port}"
             )
             
             try:
-                # Use FastMCP's SSE transport for HTTP
+                # Use FastMCP's Streamable HTTP transport
                 self.mcp.run(
-                    transport="sse",
+                    transport=transport,
                     host=self.settings.server.host,
                     port=self.settings.server.port
                 )
@@ -395,7 +364,7 @@ class ABAPAcceleratorServer:
             finally:
                 logger.info("Server stopped")
     
-    def run(self, transport: str = "sse") -> None:
+    def run(self, transport: str = "streamable-http") -> None:
         """Run the MCP server (synchronous wrapper)"""
         try:
             self.run_sync(transport)
