@@ -36,7 +36,7 @@ def main():
         server = ABAPAcceleratorServer(settings)
         
         # Run as HTTP server for deployment on Bedrock AgentCore/ECS Fargate
-        server.run("sse")
+        server.run("streamable-http")
         
     except KeyboardInterrupt:
         logger.info("👋 Server stopped by user")

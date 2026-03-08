@@ -350,6 +350,9 @@ class EnterpriseABAPAcceleratorServer:
         # Try to get FastMCP OAuth provider first (NEW approach)
         oauth_provider = get_fastmcp_oauth_provider()
 
+        # Set stateless_http via env var (required by newer fastmcp versions)
+        os.environ["FASTMCP_STATELESS_HTTP"] = "true"
+
         if oauth_provider:
             logger.info("OAuth: Using FastMCP's built-in OAuth (OAuthProxy)")
             # Initialize FastMCP with OAuth

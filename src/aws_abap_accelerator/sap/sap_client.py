@@ -291,7 +291,7 @@ class SAPADTClient:
             timeout=timeout,
             headers=headers,
             connector=connector,
-            cookie_jar=aiohttp.CookieJar()
+            cookie_jar=aiohttp.DummyCookieJar()  # Disable auto cookie handling - we manage cookies manually in _get_appropriate_headers
         )
         
         return session
@@ -353,11 +353,10 @@ class SAPADTClient:
         try:
             logger.info("Attempting cookie-based authentication")
             
-            # Add cookies to session
+            # Cookies are managed manually via _get_appropriate_headers Cookie header
+            # No need to push into cookie_jar (which may be DummyCookieJar for basic auth sessions)
             if self.cookies:
-                for name, value in self.cookies.items():
-                    self.session.cookie_jar.update_cookies({name: value})
-                logger.info(f"Added {len(self.cookies)} cookies to session")
+                logger.info(f"Using {len(self.cookies)} cookies for cookie-based authentication")
             
             # Test connection with discovery endpoint using cookies only
             discovery_url = f"/sap/bc/adt/discovery?sap-client={self.connection.client}"
@@ -518,6 +517,9 @@ class SAPADTClient:
                     if set_cookie_headers:
                         self.cookies = {cookie.split('=')[0]: cookie.split('=')[1].split(';')[0] 
                                       for cookie in set_cookie_headers if '=' in cookie}
+                        logger.info(f"Captured {len(self.cookies)} session cookies: {list(self.cookies.keys())}")
+                    else:
+                        logger.warning("No set-cookie headers received from SAP during authentication")
                     
                     logger.info(f"Authentication successful, CSRF token: {sanitize_for_logging(self.csrf_token)}")
                     return True
@@ -577,7 +579,15 @@ class SAPADTClient:
                     import base64
                     auth_str = base64.b64encode(f"{self.connection.username}:{password}".encode()).decode()
                     headers['Authorization'] = f'Basic {auth_str}'
-                    logger.debug("Using basic authentication headers")
+                    # Also include session cookies - SAP validates CSRF tokens against the session
+                    # Without cookies, write operations (POST/PUT/DELETE) fail with 403
+                    # "System error in lock management" because SAP can't match the CSRF token
+                    if self.cookies:
+                        cookie_str = '; '.join([f"{k}={v}" for k, v in self.cookies.items()])
+                        headers['Cookie'] = cookie_str
+                        logger.info(f"Using basic auth with {len(self.cookies)} session cookies: {list(self.cookies.keys())}")
+                    else:
+                        logger.warning("Using basic auth WITHOUT session cookies - write operations may fail")
                 elif self.cookies:
                     # Fall back to cookies for browser-based auth
                     cookie_str = '; '.join([f"{k}={v}" for k, v in self.cookies.items()])

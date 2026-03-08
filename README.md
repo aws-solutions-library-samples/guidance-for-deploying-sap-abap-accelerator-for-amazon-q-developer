@@ -168,7 +168,7 @@ cd abap-accelerator
 pip install -r requirements.txt
 
 # Run the server
-python start_server.py
+python main.py
 ```
 
 ## Environment Variables
@@ -177,17 +177,20 @@ Create a `.env` file or set environment variables:
 
 ```bash
 # SAP Connection
-SAP_HOST=sap-dev.company.com
+SAP_HOST=your-sap-host.example.com
 SAP_INSTANCE_NUMBER=00
 SAP_CLIENT=100
-SAP_USERNAME=your-username
-SAP_PASSWORD=your-password
+SAP_USERNAME=your_username
+SAP_PASSWORD=your_password
 SAP_LANGUAGE=EN
 SAP_SECURE=true
-
-# Server Configuration
+# Server
 SERVER_HOST=localhost
 SERVER_PORT=8000
+# SSL (optional)
+SSL_VERIFY=true
+# CUSTOM_CA_CERT_PATH=/path/to/ca-cert.pem
+# Logging
 LOG_LEVEL=INFO
 ```
 
