@@ -473,30 +473,35 @@ class EnterpriseABAPAcceleratorServer:
         self._setup_mcp()
         self._setup_signal_handlers()
 
-        logger.info(
-            f"Starting Enterprise ABAP-Accelerator MCP server on {self.settings.server.host}:{self.settings.server.port}"
-        )
-        logger.info(
-            f"Health check available via MCP protocol at: http://{self.settings.server.host}:{self.settings.server.port}/mcp"
-        )
-        logger.info(
-            f"Transport: {transport} (Streamable HTTP for Q Developer compatibility)"
-        )
-
-        # Check if FastMCP OAuth is configured
-        from server.fastmcp_oauth_integration import is_fastmcp_oauth_available
-
-        if is_fastmcp_oauth_available():
+        if transport == "stdio":
             logger.info(
-                f"OAuth: FastMCP OAuth ENABLED - automatic browser authentication available"
-            )
-            logger.info(
-                f"OAuth: Callback URL: {os.getenv('SERVER_BASE_URL')}/oauth/callback"
+                "Starting Enterprise ABAP-Accelerator MCP server (STDIO transport)"
             )
         else:
             logger.info(
-                f"OAuth: OAuth flow DISABLED - using header-based authentication"
+                f"Starting Enterprise ABAP-Accelerator MCP server on {self.settings.server.host}:{self.settings.server.port}"
             )
+            logger.info(
+                f"Health check available via MCP protocol at: http://{self.settings.server.host}:{self.settings.server.port}/mcp"
+            )
+            logger.info(
+                f"Transport: {transport} (Streamable HTTP for Q Developer compatibility)"
+            )
+
+            # Check if FastMCP OAuth is configured
+            from server.fastmcp_oauth_integration import is_fastmcp_oauth_available
+
+            if is_fastmcp_oauth_available():
+                logger.info(
+                    "OAuth: FastMCP OAuth ENABLED - automatic browser authentication available"
+                )
+                logger.info(
+                    f"OAuth: Callback URL: {os.getenv('SERVER_BASE_URL')}/oauth/callback"
+                )
+            else:
+                logger.info(
+                    "OAuth: OAuth flow DISABLED - using header-based authentication"
+                )
 
         try:
             if transport == "stdio":
@@ -517,7 +522,7 @@ class EnterpriseABAPAcceleratorServer:
         finally:
             logger.info("Server stopped")
 
-    def run(self, transport: str = "sse") -> None:
+    def run(self, transport: str = "streamable-http") -> None:
         """Run the MCP server (synchronous wrapper)"""
         try:
             self.run_sync(transport)
@@ -642,9 +647,9 @@ def _initialize_interactive_credentials() -> bool:
                     "sap_instance_number": sap_instance,
                     "sap_secure": os.getenv("SAP_SECURE", "true"),
                 }
-                import json
-
-                keychain_manager._memory_store[system_id] = json.dumps(credential_data)
+                keychain_manager.store_credentials_by_identifier(
+                    system_id, credential_data
+                )
                 os.environ.setdefault("DEFAULT_SAP_SYSTEM_ID", system_id)
                 logger.info(
                     f"AUTH: Loaded env credentials into keychain as '{system_id}' for {sap_username}@{sap_host}"

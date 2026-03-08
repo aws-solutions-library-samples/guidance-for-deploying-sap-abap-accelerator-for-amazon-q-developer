@@ -241,6 +241,26 @@ class KeychainManager:
             # Use warning level when re-raising - caller handles the error
             logger.warning(f"Failed to store SAP credentials: {e}")
             raise Exception(f"Failed to store credentials: {str(e)}")
+    def store_credentials_by_identifier(self, identifier: str, credential_data: Dict[str, str]) -> None:
+        """
+        Store pre-built credential data under a user-defined identifier.
+
+        This is used when credentials are already assembled (e.g. from
+        environment variables) and need to be placed into the keychain
+        so that ``get_sap_credentials_by_identifier`` can find them.
+
+        Args:
+            identifier: Keychain lookup key (e.g. 'env-100').
+            credential_data: Dictionary with sap_host, sap_client, etc.
+        """
+        credential_json = json.dumps(credential_data)
+
+        if self._keyring:
+            self._keyring.set_password(self.service_name, identifier, credential_json)
+            logger.info(f"Stored credentials in OS keychain under '{identifier}'")
+        else:
+            self._memory_store[identifier] = credential_json
+            logger.info(f"Stored credentials in memory under '{identifier}'")
     
     def get_sap_credentials_by_identifier(self, keychain_identifier: str) -> Optional[Dict[str, str]]:
         """
