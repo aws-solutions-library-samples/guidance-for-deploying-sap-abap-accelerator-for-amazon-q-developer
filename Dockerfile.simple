@@ -1,67 +1,91 @@
 # Dockerfile for ABAP-Accelerator MCP Server
-# Simple production-ready image without obfuscation
+# Production-ready image using multi-stage build with uv
 # Supports both AMD64 and ARM64 architectures
 
-# Official Python image from Docker Hub
-# ECR Public mirror (public.ecr.aws/docker/library/python) can also be used
-FROM python:3.12-slim
+# ---------------------------------------------------------------------------
+# Stage 1: Build — install dependencies with uv in an isolated virtual env
+# ---------------------------------------------------------------------------
+# Using ECR Public mirror of official Python image per Amazon security guidelines
+# See: https://gallery.ecr.aws/docker/library/python
+FROM public.ecr.aws/docker/library/python:3.12-slim AS builder
+
+# Install uv — fast Python package manager
+# Pin to a specific version for reproducible builds
+COPY --from=ghcr.io/astral-sh/uv:0.10.9 /uv /usr/local/bin/uv
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+
+WORKDIR /app
+
+# Install dependencies into a virtual env (locked — exact versions from uv.lock)
+COPY pyproject.toml uv.lock ./
+RUN uv venv /app/.venv && \
+    uv sync --frozen --no-dev --python /app/.venv/bin/python
+
+# ---------------------------------------------------------------------------
+# Stage 2: Runtime — minimal final image
+# ---------------------------------------------------------------------------
+FROM public.ecr.aws/docker/library/python:3.12-slim AS runtime
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
     ENABLE_ENTERPRISE_MODE=true \
     SERVER_HOST=0.0.0.0 \
     SERVER_PORT=8000 \
-    DOCKER_CONTAINER=true
+    DOCKER_CONTAINER=true \
+    PATH="/app/.venv/bin:$PATH"
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    procps \
+# Install only the runtime OS packages we actually need, then clean up in the same layer
+# gosu: lightweight su for dropping from root to appuser in the entrypoint
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        gosu \
+        procps \
     && apt-get upgrade -y \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Create non-root user for security
 RUN groupadd -r appuser && \
-    useradd -r -g appuser -d /home/appuser -s /bin/bash -m appuser
+    useradd -r -g appuser -d /home/appuser -s /sbin/nologin -m appuser
 
-# Set working directory
 WORKDIR /app
 
-# Copy and install Python dependencies
-COPY requirements.txt ./
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    rm -rf /root/.cache /tmp/* /var/tmp/*
+# Copy the pre-built virtual env from the builder stage
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy application source code
 COPY src/ ./src/
-COPY .env.example ./
 
-# Create application directories
+# Copy and wire up the entrypoint script
+COPY src/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Create writable directories, lock down permissions, then hand ownership to appuser
 RUN mkdir -p /app/logs /app/tmp && \
     chown -R appuser:appuser /app && \
     chmod -R 755 /app && \
-    chmod 777 /app/logs
+    chmod 770 /app/logs /app/tmp
 
-# Switch to non-root user
-USER appuser
+# Container starts as root so the entrypoint can inject custom CA certs,
+# then drops to appuser via gosu before exec'ing the CMD.
 
 # Expose server port
 EXPOSE 8000
 
-# Labels
+# OCI labels
 LABEL maintainer="SAP ABAP-Accelerator Team" \
       version="1.0.0" \
-      description="MCP Server for SAP ABAP development"
+      description="MCP Server for SAP ABAP development" \
+      org.opencontainers.image.source="https://github.com/unfor19/abap-accelerator-enterprise"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python /app/src/aws_abap_accelerator/health_check.py || exit 1
+    CMD ["python", "/app/src/aws_abap_accelerator/health_check.py"]
 
-# Start the server
+# Start the server (entrypoint handles CA certs + privilege drop)
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["python", "src/aws_abap_accelerator/enterprise_main.py"]
