@@ -2,7 +2,7 @@
 name = "aws-abap-accelerator"
 version = "1.0.0"
 description = "MCP Server for SAP ABAP development with Amazon Q Developer"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = [
     # Core Web Framework
     "fastapi>=0.104.0",
