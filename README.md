@@ -161,8 +161,8 @@ Run the MCP server directly with Python on your local machine.
 
 ```bash
 # Clone repository
-git clone https://github.com/aws-solutions-library-samples/guidance-for-deploying-sap-abap-accelerator-for-amazon-q-developer.git
-cd abap-accelerator
+git clone https://github.com/unfor19/abap-accelerator-enterprise
+cd abap-accelerator-enterprise
 
 # Install dependencies
 pip install -r requirements.txt
@@ -238,21 +238,32 @@ make clean          # Remove exported tarball and image
 
 ## Loading a Pre-Built Image
 
-If you received a pre-built `abap-accelerator-enterprise-latest.tar.gz` file, load it into your local Docker daemon:
+Pull the image directly from GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/unfor19/abap-accelerator-enterprise:latest
+
+# Or a specific version
+docker pull ghcr.io/unfor19/abap-accelerator-enterprise:v1.0.0
+```
+
+Alternatively, download the `abap-accelerator-enterprise-<version>.tar.gz` tarball from the [GitHub Releases](https://github.com/unfor19/abap-accelerator-enterprise/releases) page and load it manually:
 
 ```bash
 # Mac / Linux / PowerShell
-docker load < abap-accelerator-enterprise-latest.tar.gz
+docker load < abap-accelerator-enterprise-v1.0.0.tar.gz
 
 # Windows (Command Prompt)
-docker load -i abap-accelerator-enterprise-latest.tar.gz
+docker load -i abap-accelerator-enterprise-v1.0.0.tar.gz
 ```
 
 Verify the image was loaded:
 
 ```bash
-docker images abap-accelerator-enterprise:latest
+docker images abap-accelerator-enterprise
 ```
+
+Then run it using any of the [Deployment Scenarios](#deployment-scenarios) below.
 
 ## Deployment Scenarios
 
@@ -1428,7 +1439,7 @@ This project has adopted the [Amazon Open Source Code of Conduct](https://aws.gi
 
 For issues and questions:
 
-- [GitHub Issues](https://github.com/aws/abap-accelerator/issues) for ABAP Accelerator
+- [GitHub Issues](https://github.com/unfor19/abap-accelerator-enterprise/issues) for ABAP Accelerator
 - [Amazon Q Developer documentation](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/what-is.html)
 
 This tool is intended for SAP development, sandbox, and training environments. Using this with SAP production environments is not recommended.

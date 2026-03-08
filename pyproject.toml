@@ -45,3 +45,8 @@ dev = [
     "flake8>=6.0.0",
     "mypy>=1.7.0",
 ]
+
+[tool.project-config]
+github_owner = "unfor19"
+github_repo = "abap-accelerator-enterprise"
+image_name = "abap-accelerator-enterprise"

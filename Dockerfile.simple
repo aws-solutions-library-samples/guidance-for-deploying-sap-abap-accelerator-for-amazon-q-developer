@@ -11,7 +11,7 @@ FROM public.ecr.aws/docker/library/python:3.12-slim AS builder
 
 # Install uv — fast Python package manager
 # Pin to a specific version for reproducible builds
-COPY --from=ghcr.io/astral-sh/uv:0.6.6 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.10.9 /uv /usr/local/bin/uv
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
@@ -80,7 +80,7 @@ EXPOSE 8000
 LABEL maintainer="SAP ABAP-Accelerator Team" \
       version="1.0.0" \
       description="MCP Server for SAP ABAP development" \
-      org.opencontainers.image.source="https://github.com/aws-solutions-library-samples/guidance-for-deploying-sap-abap-accelerator-for-amazon-q-developer"
+      org.opencontainers.image.source="https://github.com/unfor19/abap-accelerator-enterprise"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

@@ -1,13 +1,17 @@
-IMAGE_NAME  := abap-accelerator-enterprise
-IMAGE_TAG   := latest
-PLATFORM    := linux/amd64
-DOCKERFILE  := Dockerfile.simple
-EXPORT_FILE := $(IMAGE_NAME)-$(IMAGE_TAG).tar.gz
+IMAGE_NAME  ?= abap-accelerator-enterprise
+IMAGE_TAG   ?= latest
+PLATFORM    ?= linux/amd64
+DOCKERFILE  ?= Dockerfile.simple
+EXPORT_FILE ?= $(IMAGE_NAME)-$(IMAGE_TAG).tar.gz
 
-.PHONY: build run docker-export clean
+.PHONY: build run docker-export clean render
+
+## Render {{PLACEHOLDER}} tokens in README.md and Dockerfile using pyproject.toml values
+render:
+	python3 scripts/render_templates.py
 
 ## Build the Docker image
-build:
+build: render
 	docker build --platform $(PLATFORM) -f $(DOCKERFILE) -t $(IMAGE_NAME):$(IMAGE_TAG) .
 
 ## Run an interactive shell in the container (host network, root, ash)

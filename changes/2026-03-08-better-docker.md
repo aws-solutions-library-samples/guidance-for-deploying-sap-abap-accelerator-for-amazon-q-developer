@@ -53,3 +53,12 @@
 ## README
 
 - Expanded with Quick Start guide (HTTP and STDIO modes), Docker loading instructions, Makefile usage, and reformatted tables.
+
+## CI/CD
+
+- Added `.github/workflows/release.yml` — triggers on GitHub release publish.
+- Builds the Docker image via `make docker-export`, passing `IMAGE_TAG` from the release tag.
+- Uploads the compressed tarball as a release asset via `softprops/action-gh-release@v2`.
+- Pushes the image to GHCR (`ghcr.io/<owner>/abap-accelerator-enterprise`) tagged with both the release version and `latest`.
+- Makefile variables switched from `:=` to `?=` so env vars from CI can override defaults.
+- README updated with `docker pull` from GHCR as the primary install path, tarball download as fallback.
