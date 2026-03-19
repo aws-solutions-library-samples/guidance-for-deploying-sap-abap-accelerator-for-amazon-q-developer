@@ -1288,63 +1288,155 @@ class SAPADTClient:
                 logger.warning("Could not obtain CSRF token for validation, proceeding anyway")
             
             # Step 1: Object name validation (matching the first POST in call stack)
-            validation_url = f"/sap/bc/adt/oo/validation/objectname"
-            validation_params = {
-                'objname': request.name,
-                'packagename': package_name,
-                'description': request.description,
-                'objtype': f"{request.type.value}/OC" if request.type.value == 'CLAS' else request.type.value
-            }
+            # Use type-specific validation endpoints
+            ot = request.type.value.upper()
+            validation_url = None
+            validation_params = {}
+            accept_header = 'application/vnd.sap.as+xml'
+
+            if ot in ('CLAS', 'BIMPL'):
+                validation_url = "/sap/bc/adt/oo/validation/objectname"
+                validation_params = {
+                    'objname': request.name,
+                    'packagename': package_name,
+                    'description': request.description,
+                    'objtype': 'CLAS/OC'
+                }
+                accept_header = 'application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.oo.clifname.check'
+            elif ot == 'INTF':
+                validation_url = "/sap/bc/adt/oo/validation/objectname"
+                validation_params = {
+                    'objname': request.name,
+                    'packagename': package_name,
+                    'description': request.description,
+                    'objtype': 'INTF/OI'
+                }
+                accept_header = 'application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.oo.clifname.check'
+            elif ot in ('PROG', 'PROG/P'):
+                validation_url = "/sap/bc/adt/programs/validation"
+                validation_params = {
+                    'objname': request.name,
+                    'packagename': package_name,
+                    'description': request.description,
+                    'objtype': 'PROG/P'
+                }
+            elif ot == 'PROG/I':
+                validation_url = "/sap/bc/adt/programs/validation"
+                validation_params = {
+                    'objname': request.name,
+                    'packagename': package_name,
+                    'description': request.description,
+                    'objtype': 'PROG/I'
+                }
+            elif ot == 'TABL':
+                validation_url = "/sap/bc/adt/ddic/tables/validation"
+                validation_params = {
+                    'objtype': 'tabldt',
+                    'objname': request.name,
+                    'description': request.description
+                }
+            elif ot == 'DDLS':
+                validation_url = "/sap/bc/adt/ddic/ddl/validation"
+                validation_params = {
+                    'objname': request.name,
+                    'packagename': package_name,
+                    'description': request.description
+                }
+            elif ot == 'BDEF':
+                validation_url = "/sap/bc/adt/bo/behaviordefinitions/validation"
+                validation_params = {
+                    'objname': request.name,
+                    'rootEntity': request.name,
+                    'description': request.description,
+                    'package': package_name,
+                    'implementationType': 'Managed'
+                }
+            elif ot == 'SRVD':
+                validation_url = "/sap/bc/adt/ddic/srvd/sources/validation"
+                validation_params = {
+                    'objtype': 'srvdsrv',
+                    'objname': request.name,
+                    'description': request.description
+                }
+            elif ot == 'SRVB':
+                validation_url = "/sap/bc/adt/businessservices/bindings/validation"
+                validation_params = {
+                    'objname': request.name,
+                    'description': request.description,
+                    'package': package_name
+                }
+            # For types without a known validation endpoint, skip validation
             
             headers = await self._get_appropriate_headers()
-            headers['Accept'] = 'application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.oo.clifname.check'
+            headers['Accept'] = accept_header
             
             logger.info(f"Making validation request to {validation_url} with params: {sanitize_for_logging(validation_params)}")
             
-            try:
-                async with self.session.post(validation_url, params=validation_params, headers=headers) as response:
-                    logger.info(f"Validation response status: {response.status}")
-                    
-                    if response.status == 200:
-                        validation_xml = await response.text()
-                        logger.info(f"Object name validation response: {sanitize_for_logging(validation_xml[:200])}")
+            if validation_url:
+                try:
+                    async with self.session.post(validation_url, params=validation_params, headers=headers) as response:
+                        logger.info(f"Validation response status: {response.status}")
                         
-                        # Parse validation result
-                        root = safe_parse_xml(validation_xml)
-                        if root is not None:
-                            check_result = None
-                            for elem in root.iter():
-                                if elem.tag.endswith('CHECK_RESULT') or 'CHECK_RESULT' in elem.tag:
-                                    check_result = elem.text
-                                    break
+                        if response.status == 200:
+                            validation_xml = await response.text()
+                            logger.info(f"Object name validation response: {sanitize_for_logging(validation_xml[:200])}")
                             
-                            if check_result != 'X':
-                                logger.warning(f"Object name validation failed: CHECK_RESULT = {check_result}")
-                                # Don't fail - just log and continue
-                    elif response.status == 401:
-                        logger.info(f"Object name validation got 401 - authentication issue, but validation is optional, continuing...")
-                        # Don't fail - validation is optional and 401 is common for validation endpoints
-                    else:
-                        logger.info(f"Object name validation returned status {response.status}, skipping validation")
-                        # Don't fail - validation is optional
-                        
-            except Exception as validation_error:
-                logger.info(f"Object name validation failed with error: {validation_error} - continuing anyway as validation is optional")
-                # Don't fail - validation is optional
+                            # Parse validation result
+                            root = safe_parse_xml(validation_xml)
+                            if root is not None:
+                                check_result = None
+                                for elem in root.iter():
+                                    if elem.tag.endswith('CHECK_RESULT') or 'CHECK_RESULT' in elem.tag:
+                                        check_result = elem.text
+                                        break
+                                
+                                if check_result != 'X':
+                                    logger.warning(f"Object name validation failed: CHECK_RESULT = {check_result}")
+                                    # Don't fail - just log and continue
+                        elif response.status == 401:
+                            logger.info(f"Object name validation got 401 - authentication issue, but validation is optional, continuing...")
+                            # Don't fail - validation is optional and 401 is common for validation endpoints
+                        else:
+                            logger.info(f"Object name validation returned status {response.status}, skipping validation")
+                            # Don't fail - validation is optional
+                            
+                except Exception as validation_error:
+                    logger.info(f"Object name validation failed with error: {validation_error} - continuing anyway as validation is optional")
+                    # Don't fail - validation is optional
+            else:
+                logger.info(f"No validation endpoint for type {request.type.value}, skipping validation")
             
             # Step 2: Transport check (matching the second POST in call stack)
             # Build URI based on object type
-            object_uri = f"/sap/bc/adt/oo/classes/{request.name.lower()}/source/main"
-            if request.type.value.upper() == 'CLAS':
+            ot = request.type.value.upper()
+            if ot == 'CLAS':
                 object_uri = f"/sap/bc/adt/oo/classes/{request.name.lower()}/source/main"
-            elif request.type.value.upper() == 'DDLS':
-                object_uri = f"/sap/bc/adt/ddic/ddlsources/{request.name.lower()}/source/main"
-            elif request.type.value.upper() == 'BDEF':
-                object_uri = f"/sap/bc/adt/bo/behaviordefinitions/{request.name.lower()}/source/main"
-            elif request.type.value.upper() == 'SRVD':
-                object_uri = f"/sap/bc/adt/ddic/srvd/{request.name.lower()}/source/main"
-            elif request.type.value.upper() == 'SRVB':
-                object_uri = f"/sap/bc/adt/businessservices/servicebindings/{request.name.lower()}/source/main"
+            elif ot == 'INTF':
+                object_uri = f"/sap/bc/adt/oo/interfaces/{request.name.lower()}/source/main"
+            elif ot == 'DDLS':
+                object_uri = f"/sap/bc/adt/ddic/ddl/sources/{request.name.lower()}"
+            elif ot == 'BDEF':
+                object_uri = f"/sap/bc/adt/bo/behaviordefinitions/{request.name.lower()}"
+            elif ot == 'SRVD':
+                object_uri = f"/sap/bc/adt/ddic/srvd/sources/{request.name.lower()}"
+            elif ot == 'SRVB':
+                object_uri = f"/sap/bc/adt/businessservices/bindings/{request.name.lower()}"
+            elif ot in ('PROG', 'PROG/P'):
+                object_uri = f"/sap/bc/adt/programs/programs/{request.name.lower()}"
+            elif ot == 'PROG/I':
+                object_uri = f"/sap/bc/adt/programs/includes/{request.name.lower()}"
+            elif ot == 'TABL':
+                object_uri = f"/sap/bc/adt/ddic/tables/{request.name.lower()}"
+            elif ot in ('STRU', 'TABL/DS'):
+                object_uri = f"/sap/bc/adt/ddic/structures/{request.name.lower()}"
+            elif ot == 'FUGR':
+                object_uri = f"/sap/bc/adt/functions/groups/{request.name.lower()}"
+            elif ot == 'DTEL':
+                object_uri = f"/sap/bc/adt/ddic/dataelements/{request.name.lower()}"
+            elif ot == 'BIMPL':
+                object_uri = f"/sap/bc/adt/oo/classes/{request.name.lower()}/source/main"
+            else:
+                object_uri = f"/sap/bc/adt/oo/classes/{request.name.lower()}/source/main"
             
             transport_check_xml = f"""<?xml version="1.0" encoding="UTF-8" ?>
 <asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml">
@@ -1484,7 +1576,8 @@ class SAPADTClient:
             
             # Step 3: Update source and check syntax + activate
             update_result = await self.update_source_with_syntax_check(
-                request.name, request.type.value, request.source_code
+                request.name, request.type.value, request.source_code,
+                transport_request=request.transport_request
             )
             
             return ObjectOperationResult(
@@ -1526,7 +1619,8 @@ class SAPADTClient:
                     package_name=request.package_name,
                     source_code=request.source_code or "",
                     csrf_token=self.csrf_token,
-                    cookies=cookie_list
+                    cookies=cookie_list,
+                    transport_request=request.transport_request
                 )
             
             # Special handling for Behavior Definitions (BDEF) using specialized handler
@@ -1536,7 +1630,8 @@ class SAPADTClient:
                     name=request.name,
                     description=request.description,
                     package_name=request.package_name,
-                    implementation_type='Managed'  # Default to Managed
+                    implementation_type='Managed',  # Default to Managed
+                    transport_request=request.transport_request
                 )
             
             # Special handling for Service Definitions (SRVD) using specialized handler
@@ -1546,12 +1641,13 @@ class SAPADTClient:
                     name=request.name,
                     description=request.description,
                     package_name=request.package_name,
-                    source_code=request.source_code or ""
+                    source_code=request.source_code or "",
+                    transport_request=request.transport_request
                 )
             
             # Special handling for Service Bindings (SRVB) using specialized handler
             if request.type.value.upper() == 'SRVB':
-                logger.info(f"Creating Service Binding {sanitize_for_logging(request.name)} using specialized handler")
+                logger.info(f"Creating Service Binding {sanitize_for_logging(request.name)} using direct ADT approach")
                 if not request.service_definition:
                     logger.error("Service Definition reference is required for Service Binding creation")
                     return False
@@ -1560,13 +1656,112 @@ class SAPADTClient:
                 if hasattr(request, 'binding_type') and request.binding_type:
                     binding_type = request.binding_type.value if hasattr(request.binding_type, 'value') else str(request.binding_type)
                 
-                return await self.service_binding_handler.create_service_binding(
-                    name=request.name,
-                    description=request.description,
-                    package_name=request.package_name,
-                    service_definition=request.service_definition,
-                    binding_type=binding_type
+                # Map binding type to category and version
+                bt_map = {
+                    'ODATA_V2_UI': ('0', 'V2'), 'ODATA_V4_UI': ('0', 'V4'),
+                    'ODATA_V2_WEB_API': ('1', 'V2'), 'ODATA_V4_WEB_API': ('1', 'V4'),
+                }
+                category, version = bt_map.get(binding_type, ('0', 'V4'))
+                
+                safe_name = sanitize_for_xml(request.name)
+                safe_desc = sanitize_for_xml(request.description)
+                safe_pkg = sanitize_for_xml(request.package_name)
+                safe_srvd = sanitize_for_xml(request.service_definition)
+                username = self.connection.username.upper()
+                
+                srvb_xml = (
+                    '<?xml version="1.0" encoding="UTF-8"?>'
+                    '<srvb:serviceBinding xmlns:adtcore="http://www.sap.com/adt/core"'
+                    ' xmlns:srvb="http://www.sap.com/adt/ddic/ServiceBindings"'
+                    f' adtcore:description="{safe_desc}" adtcore:language="EN"'
+                    f' adtcore:name="{safe_name}" adtcore:type="SRVB/SVB"'
+                    f' adtcore:masterLanguage="EN" adtcore:responsible="{username}">'
+                    f'<adtcore:packageRef adtcore:name="{safe_pkg}"/>'
+                    f'<srvb:services srvb:name="{safe_srvd}">'
+                    '<srvb:content srvb:version="0001">'
+                    f'<srvb:serviceDefinition adtcore:name="{safe_srvd}"/>'
+                    '</srvb:content>'
+                    '</srvb:services>'
+                    f'<srvb:binding srvb:category="{category}" srvb:type="ODATA" srvb:version="{version}">'
+                    '<srvb:implementation adtcore:name=""/>'
+                    '</srvb:binding>'
+                    '</srvb:serviceBinding>'
                 )
+                
+                url = f"/sap/bc/adt/businessservices/bindings?sap-client={self.connection.client}"
+                if request.transport_request:
+                    url += f"&corrNr={quote(request.transport_request)}"
+                
+                await self._ensure_fresh_csrf_token()
+                headers = await self._get_appropriate_headers()
+                headers['Content-Type'] = 'application/vnd.sap.adt.businessservices.servicebinding.v2+xml'
+                headers['Accept'] = 'application/vnd.sap.adt.businessservices.servicebinding.v2+xml, application/vnd.sap.adt.businessservices.servicebinding.v1+xml'
+                
+                async with self.session.post(url, data=srvb_xml, headers=headers) as response:
+                    if response.status in [200, 201]:
+                        logger.info(f"Successfully created SRVB {sanitize_for_logging(request.name)}")
+                        return True
+                    elif response.status == 400:
+                        error_text = await response.text()
+                        if 'already exist' in error_text.lower():
+                            logger.info(f"SRVB {sanitize_for_logging(request.name)} already exists")
+                            return True
+                        logger.error(f"SRVB creation failed: {response.status} - {sanitize_for_logging(error_text[:300])}")
+                        return False
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"SRVB creation failed: {response.status} - {sanitize_for_logging(error_text[:300])}")
+                        return False
+            
+            # Special handling for TABL/STRU — use blueSource XML with explicit sap-client param
+            if request.type.value.upper() in ('TABL', 'STRU'):
+                ot = request.type.value.upper()
+                logger.info(f"Creating {ot} {sanitize_for_logging(request.name)} using direct ADT approach")
+                
+                type_attr = 'TABL/DT' if ot == 'TABL' else 'STRU/DS'
+                ct = 'application/vnd.sap.adt.tables.v2+xml' if ot == 'TABL' else 'application/vnd.sap.adt.structures.v2+xml'
+                adt_path = 'ddic/tables' if ot == 'TABL' else 'ddic/structures'
+                
+                safe_name = sanitize_for_xml(request.name)
+                safe_desc = sanitize_for_xml(request.description)
+                safe_pkg = sanitize_for_xml(request.package_name)
+                username = self.connection.username.upper()
+                
+                create_xml = (
+                    '<?xml version="1.0" encoding="UTF-8"?>'
+                    '<blue:blueSource xmlns:adtcore="http://www.sap.com/adt/core"'
+                    ' xmlns:blue="http://www.sap.com/wbobj/blue"'
+                    f' adtcore:description="{safe_desc}" adtcore:language="EN"'
+                    f' adtcore:name="{safe_name}" adtcore:type="{type_attr}"'
+                    f' adtcore:masterLanguage="EN" adtcore:responsible="{username}">'
+                    f'<adtcore:packageRef adtcore:name="{safe_pkg}"/>'
+                    '</blue:blueSource>'
+                )
+                
+                url = f"/sap/bc/adt/{adt_path}?sap-client={self.connection.client}"
+                if request.transport_request:
+                    url += f"&corrNr={quote(request.transport_request)}"
+                
+                await self._ensure_fresh_csrf_token()
+                headers = await self._get_appropriate_headers()
+                headers['Content-Type'] = ct
+                headers['Accept'] = f'{ct}, application/vnd.sap.adt.blues.v1+xml'
+                
+                async with self.session.post(url, data=create_xml, headers=headers) as response:
+                    if response.status in [200, 201]:
+                        logger.info(f"Successfully created {ot} {sanitize_for_logging(request.name)}")
+                        return True
+                    elif response.status == 400:
+                        error_text = await response.text()
+                        if 'already exist' in error_text.lower():
+                            logger.info(f"{ot} {sanitize_for_logging(request.name)} already exists")
+                            return True
+                        logger.error(f"{ot} creation failed: {response.status} - {sanitize_for_logging(error_text[:300])}")
+                        return False
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"{ot} creation failed: {response.status} - {sanitize_for_logging(error_text[:300])}")
+                        return False
             
             # Special handling for BIMPL with explicit behaviorDefinition parameter
             if request.type.value.upper() == 'BIMPL' and request.behavior_definition:
@@ -1614,6 +1809,16 @@ class SAPADTClient:
                 content_type = 'application/vnd.sap.adt.ddic.srvd.v1+xml'
             elif request.type.value.upper() == 'SRVB':
                 content_type = 'application/vnd.sap.adt.businessservices.servicebinding.v2+xml'
+            elif request.type.value.upper() == 'TABL':
+                content_type = 'application/vnd.sap.adt.tables.v2+xml'
+            elif request.type.value.upper() == 'STRU':
+                content_type = 'application/vnd.sap.adt.structures.v2+xml'
+            elif request.type.value.upper() in ('PROG', 'PROG/P'):
+                content_type = 'application/vnd.sap.adt.programs.programs.v2+xml'
+            elif request.type.value.upper() == 'PROG/I':
+                content_type = 'application/vnd.sap.adt.programs.includes.v2+xml'
+            elif request.type.value.upper() == 'INTF':
+                content_type = 'application/vnd.sap.adt.oo.interfaces.v2+xml'
             
             # Ensure fresh CSRF token for create operation
             csrf_success = await self._ensure_fresh_csrf_token()
@@ -1894,13 +2099,13 @@ class SAPADTClient:
             return False
     
     async def update_source_with_syntax_check(self, object_name: str, object_type: str, 
-                                            source_code: str) -> ObjectOperationResult:
+                                            source_code: str, transport_request: Optional[str] = None) -> ObjectOperationResult:
         """Update source code with syntax check (matching TypeScript implementation)"""
         try:
             print(f"[SAP-CLIENT] Updating source with syntax check for {sanitize_for_logging(object_name)}")
             
             # Step 1: Update source code
-            updated, error_msg = await self._update_source(object_name, object_type, source_code)
+            updated, error_msg = await self._update_source(object_name, object_type, source_code, transport_request=transport_request)
             if not updated:
                 print(f"[SAP-CLIENT] Source update failed for {sanitize_for_logging(object_name)}: {error_msg}")
                 return ObjectOperationResult(
@@ -2014,6 +2219,17 @@ class SAPADTClient:
                         messages=['Activation was cancelled due to errors'] if not activation_executed else []
                     )
                     
+                    # Auto-publish service bindings after successful activation
+                    if object_type.upper() == 'SRVB' and result.activated:
+                        publish_result = await self._publish_service_binding(object_name)
+                        if publish_result:
+                            result.messages = list(result.messages or []) + [f'{object_name} published locally']
+                            logger.info(f"SRVB {sanitize_for_logging(object_name)} published locally after activation")
+                        else:
+                            result.warnings = list(result.warnings or []) + [
+                                SAPSyntaxError(line=0, message=f'Activation succeeded but publish failed for {object_name}', severity='WARNING')
+                            ]
+                    
                     rap_logger.activation(
                         sanitize_for_logging(object_name), 
                         sanitize_for_logging(object_type), 
@@ -2049,6 +2265,61 @@ class SAPADTClient:
                 messages=[]
             )
     
+    async def _publish_service_binding(self, binding_name: str) -> bool:
+        """Publish a Service Binding locally via OData V4 publish jobs.
+        Flow: lock → publish → unlock."""
+        import re
+        name = binding_name.strip().upper()
+        obj_url = f"/sap/bc/adt/businessservices/bindings/{name.lower()}"
+
+        try:
+            await self._ensure_fresh_csrf_token()
+            headers = await self._get_appropriate_headers()
+
+            # Step 1: Lock
+            lock_handle = None
+            lock_url = f"{obj_url}?sap-client={self.connection.client}&_action=LOCK&accessMode=MODIFY"
+            lock_headers = {**headers, 'Accept': (
+                'application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.result;q=0.8, '
+                'application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.result2;q=0.9'
+            )}
+            async with self.session.post(lock_url, data='', headers=lock_headers) as resp:
+                if resp.status == 200:
+                    text = await resp.text()
+                    m = re.search(r'<LOCK_HANDLE>([^<]+)</LOCK_HANDLE>', text)
+                    if m:
+                        lock_handle = m.group(1)
+                else:
+                    logger.warning(f"SRVB lock failed ({resp.status}), attempting publish anyway")
+
+            # Step 2: Publish
+            publish_xml = (
+                '<?xml version="1.0" encoding="UTF-8"?>'
+                '<adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">'
+                f'<adtcore:objectReference adtcore:type="SCGR" adtcore:name="{sanitize_for_xml(name)}"/>'
+                '</adtcore:objectReferences>'
+            )
+            pub_headers = {**headers,
+                'Content-Type': 'application/xml',
+                'Accept': 'application/xml, application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.StatusMessage',
+            }
+            pub_url = f"/sap/bc/adt/businessservices/odatav4/publishjobs?sap-client={self.connection.client}"
+            async with self.session.post(pub_url, data=publish_xml, headers=pub_headers) as resp:
+                result_text = await resp.text() if resp.status == 200 else ''
+                published = resp.status == 200 and ('published locally' in result_text.lower() or 'OK' in result_text)
+
+            # Step 3: Unlock
+            if lock_handle:
+                unlock_url = f"{obj_url}?sap-client={self.connection.client}&_action=UNLOCK&lockHandle={quote(lock_handle)}"
+                async with self.session.post(unlock_url, data='', headers=headers) as resp:
+                    pass  # best-effort unlock
+
+            return published
+
+        except Exception as e:
+            logger.warning(f"SRVB publish failed for {sanitize_for_logging(name)}: {sanitize_for_logging(str(e))}")
+            return False
+
     def _parse_syntax_check_result_from_activation(self, root) -> SyntaxCheckResult:
         """Parse syntax check result from activation response XML"""
         errors = []
@@ -2324,7 +2595,8 @@ class SAPADTClient:
             print(f"[SAP-CLIENT] Transport check error: {sanitize_for_logging(str(e))}")
             return {}
     
-    async def _update_source(self, object_name: str, object_type: str, source_code: str) -> Tuple[bool, Optional[str]]:
+    async def _update_source(self, object_name: str, object_type: str, source_code: str,
+                            transport_request: Optional[str] = None) -> Tuple[bool, Optional[str]]:
         """Update source code in SAP system. Returns (success, error_message)"""
         try:
             print(f"[SAP-CLIENT] Updating source for {sanitize_for_logging(object_name)} ({sanitize_for_logging(object_type)})")
@@ -2363,6 +2635,9 @@ class SAPADTClient:
                 if lock_info.get('CORRNR'):
                     source_url += f"&corrNr={quote(lock_info['CORRNR'])}"
                     print(f"[SAP-CLIENT] Using transport from lock: {sanitize_for_logging(lock_info['CORRNR'])}")
+                elif transport_request:
+                    source_url += f"&corrNr={quote(transport_request)}"
+                    print(f"[SAP-CLIENT] Using externally provided transport: {sanitize_for_logging(transport_request)}")
                 elif not is_local_object:
                     # Only check transport for non-local objects (not $TMP)
                     # WARNING: Transport check can release locks on some SAP systems
@@ -2493,6 +2768,10 @@ class SAPADTClient:
                     try:
                         source_url = f"{endpoint}?sap-client={self.connection.client}"
                         source_url += f"&lockHandle={quote(lock_info['LOCK_HANDLE'])}"
+                        
+                        # Pass corrNr from lock response if available (for non-$TMP objects)
+                        if lock_info.get('CORRNR'):
+                            source_url += f"&corrNr={quote(lock_info['CORRNR'])}"
                         
                         print(f"[SAP-CLIENT] Trying class source update at: {sanitize_for_logging(source_url)}")
                         print(f"[SAP-CLIENT] Source Code length: {len(source_code)}")
