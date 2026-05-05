@@ -409,6 +409,14 @@ def create_oauth_provider():
             return None
         
         # Build OAuthProxy kwargs
+        # Read valid scopes from OAUTH_SCOPES env var (comma-separated).
+        # Default preserves original Okta/Federate behavior if the env var is unset.
+        # For Entra, set OAUTH_SCOPES to include the API scope (e.g. "<client-id>/.default")
+        # so the published metadata tells MCP clients to request a token for your API.
+        oauth_scopes_env = os.getenv("OAUTH_SCOPES", "openid,email,profile,offline_access")
+        env_scopes = [s.strip() for s in oauth_scopes_env.split(",") if s.strip()]
+        logger.info(f"OAuth: Using scopes from OAUTH_SCOPES: {env_scopes}")
+
         oauth_kwargs = {
             "upstream_authorization_endpoint": auth_endpoint,
             "upstream_token_endpoint": token_endpoint,
@@ -418,7 +426,7 @@ def create_oauth_provider():
             "redirect_path": "/oauth/callback",
             "token_verifier": token_verifier,  # REQUIRED
             # CRITICAL: Must specify valid_scopes or registration will reject all scopes
-            "valid_scopes": ["openid", "email", "profile", "offline_access"],
+            "valid_scopes": env_scopes,
         }
         
         # CRITICAL: Add jwt_signing_key for production
@@ -444,8 +452,9 @@ def create_oauth_provider():
         
         # Patch for MCP clients that send empty scopes during registration (Kiro compatibility)
         # Set _default_scope_str directly so clients that don't send scopes get defaults
-        # This doesn't affect token validation, only registration fallback
-        default_scopes = ["openid", "email", "profile", "offline_access"]
+        # This doesn't affect token validation, only registration fallback.
+        # Uses the same scopes resolved from OAUTH_SCOPES above.
+        default_scopes = env_scopes
         oauth_proxy._default_scope_str = " ".join(default_scopes)
         logger.info(f"OAuth: Set default registration scopes: {default_scopes}")
         
