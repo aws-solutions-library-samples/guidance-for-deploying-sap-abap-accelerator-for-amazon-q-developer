@@ -74,6 +74,63 @@ class CertificateAuthProvider(AuthenticationProvider):
         self._ca_private_key_pem = ca_key_pem
         return self._load_ca_credentials(ca_cert_pem, ca_key_pem)
     
+    # OIDs inherited from the CA subject when building the leaf subject.
+    # We deliberately whitelist standard DN components and drop anything else
+    # (serialNumber, DC, emailAddress, custom OIDs) so a quirky CA subject
+    # cannot surprise SAP CERTRULE matching.
+    _INHERITABLE_SUBJECT_OIDS = (
+        NameOID.COUNTRY_NAME,
+        NameOID.STATE_OR_PROVINCE_NAME,
+        NameOID.LOCALITY_NAME,
+        NameOID.ORGANIZATION_NAME,
+        NameOID.ORGANIZATIONAL_UNIT_NAME,
+    )
+
+    def _build_leaf_subject(
+        self,
+        sap_username: str,
+        fallback_country: str,
+        fallback_organization: str,
+        fallback_organizational_unit: str,
+    ) -> x509.Name:
+        """
+        Build the leaf certificate subject by inheriting DN attributes from the
+        loaded CA certificate and appending CN=<sap_username>.
+
+        Attribute order follows the CA's subject order so the rendered DN is
+        consistent with the CA chain SAP already trusts. If the CA subject
+        lacks any of C/O/OU, we fall back to the provided defaults so local
+        development with a minimal CA still works.
+        """
+        inherited: list = []
+        present_oids: set = set()
+        for attr in self._ca_certificate.subject:
+            if attr.oid == NameOID.COMMON_NAME:
+                continue
+            if attr.oid in self._INHERITABLE_SUBJECT_OIDS and attr.oid not in present_oids:
+                inherited.append(x509.NameAttribute(attr.oid, attr.value))
+                present_oids.add(attr.oid)
+
+        # Fallbacks for CAs that don't carry the full standard set.
+        if NameOID.COUNTRY_NAME not in present_oids and fallback_country:
+            inherited.append(x509.NameAttribute(NameOID.COUNTRY_NAME, fallback_country))
+        if NameOID.ORGANIZATION_NAME not in present_oids and fallback_organization:
+            inherited.append(
+                x509.NameAttribute(NameOID.ORGANIZATION_NAME, fallback_organization)
+            )
+        if (
+            NameOID.ORGANIZATIONAL_UNIT_NAME not in present_oids
+            and fallback_organizational_unit
+        ):
+            inherited.append(
+                x509.NameAttribute(
+                    NameOID.ORGANIZATIONAL_UNIT_NAME, fallback_organizational_unit
+                )
+            )
+
+        inherited.append(x509.NameAttribute(NameOID.COMMON_NAME, sap_username))
+        return x509.Name(inherited)
+
     def generate_ephemeral_certificate(
         self,
         sap_username: str,
@@ -85,25 +142,32 @@ class CertificateAuthProvider(AuthenticationProvider):
     ) -> tuple[str, str]:
         """
         Generate an ephemeral X.509 certificate for SAP authentication.
-        
+
+        The leaf subject's C/ST/L/O/OU attributes are inherited from the CA
+        certificate loaded from Secrets Manager so rotating the CA (e.g. to a
+        different organization) does not require a code change. CN is the only
+        per-request component and carries the login identifier.
+
         Args:
-            sap_username: SAP username to include in certificate CN
-            sap_system_id: SAP system identifier (not used in subject, kept for logging)
-            organization: Organization name for O (default: ABAP-Accelerator)
-            organizational_unit: OU value (default: Principal-Propagation)
-            country: Country code for C (default: US)
-            validity_minutes: Certificate validity in minutes (default 5)
-            
+            sap_username: Value placed in the certificate CN (pass-through from
+                the login identifier; SAP CERTRULE maps it to a SAP user).
+            sap_system_id: SAP system identifier (not used in subject, kept for logging).
+            organization: Fallback O value if the CA subject has no O.
+            organizational_unit: Fallback OU value if the CA subject has no OU.
+            country: Fallback C value if the CA subject has no C.
+            validity_minutes: Certificate validity in minutes (default 5).
+
         Returns:
             Tuple of (certificate_pem, private_key_pem)
-            
+
         Note:
-            Certificate subject format: CN=<sap_username>,OU=Principal-Propagation,O=ABAP-Accelerator,C=US
-            This must match the CERTRULE configuration in SAP.
+            Resulting subject mirrors the CA's DN with CN replaced by
+            sap_username. The matching SAP CERTRULE must therefore reference
+            the CA's DN components, not the legacy hardcoded values.
         """
         if not self._ca_certificate or not self._ca_private_key:
             raise ValueError("CA credentials not loaded. Call set_ca_credentials() first.")
-        
+
         try:
             # Generate new RSA key pair for this certificate
             private_key = rsa.generate_private_key(
@@ -111,17 +175,15 @@ class CertificateAuthProvider(AuthenticationProvider):
                 key_size=2048,
                 backend=default_backend()
             )
-            
-            # Build certificate subject matching SAP CERTRULE format
-            # Format: CN=<username>,OU=Principal-Propagation,O=ABAP-Accelerator,C=US
-            # Note: Order matters for SAP CERTRULE matching!
-            subject = x509.Name([
-                x509.NameAttribute(NameOID.COUNTRY_NAME, country),
-                x509.NameAttribute(NameOID.ORGANIZATION_NAME, organization),
-                x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, organizational_unit),
-                x509.NameAttribute(NameOID.COMMON_NAME, sap_username),
-            ])
-            
+
+            # Build leaf subject by inheriting non-CN attributes from the CA.
+            subject = self._build_leaf_subject(
+                sap_username=sap_username,
+                fallback_country=country,
+                fallback_organization=organization,
+                fallback_organizational_unit=organizational_unit,
+            )
+
             # Calculate validity period
             now = datetime.utcnow()
             not_valid_before = now - timedelta(minutes=1)  # Small buffer for clock skew
@@ -178,8 +240,9 @@ class CertificateAuthProvider(AuthenticationProvider):
             ).decode('utf-8')
             
             logger.info(
-                f"Generated ephemeral certificate: CN={sap_username}, OU={organizational_unit}, O={organization}, C={country}, "
-                f"Valid: {not_valid_before.isoformat()} to {not_valid_after.isoformat()}"
+                f"Generated ephemeral certificate: subject={subject.rfc4514_string()}, "
+                f"issuer={self._ca_certificate.subject.rfc4514_string()}, "
+                f"valid: {not_valid_before.isoformat()} to {not_valid_after.isoformat()}"
             )
             
             return cert_pem, key_pem
