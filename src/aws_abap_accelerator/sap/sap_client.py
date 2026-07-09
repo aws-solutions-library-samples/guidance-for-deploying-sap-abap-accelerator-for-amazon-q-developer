@@ -110,14 +110,8 @@ class SAPADTClient:
         """Ensure HTTP session is valid and recreate if needed"""
         if self.session is None or self.session.closed:
             logger.info("Creating new HTTP session (previous session was closed)")
-            if self.session and not self.session.closed:
-                await self.session.close()
-            self.session = await self._create_session()
-            
-            # Re-authenticate if we had to recreate the session
-            if self.csrf_token:
-                logger.info("Re-authenticating after session recreation")
-                await self._authenticate_basic()
+            # Use connect() to handle all authentication priorities (Cert, Basic, Cookie)
+            await self.connect()
     
     async def _handle_session_timeout_error(self, response_status: int, response_text: str) -> bool:
         """
@@ -130,12 +124,15 @@ class SAPADTClient:
         Returns:
             True if session was refreshed and request should be retried, False otherwise
         """
-        # Check for session timeout indicators
+        # Check for session timeout or unauthorized (expired session) indicators
         is_session_timeout = (
-            response_status == 400 and 
+            (response_status in (400, 401, 403)) and 
             ('session timed out' in response_text.lower() or 
              'session timeout' in response_text.lower() or
-             'session expired' in response_text.lower())
+             'session expired' in response_text.lower() or
+             'unauthorized' in response_text.lower() or
+             'csrf token' in response_text.lower() or
+             'forbidden' in response_text.lower())
         )
         
         if not is_session_timeout:
