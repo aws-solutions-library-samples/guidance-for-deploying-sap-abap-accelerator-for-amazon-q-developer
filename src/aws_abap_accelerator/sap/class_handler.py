@@ -84,7 +84,7 @@ class ClassHandler:
                 visibility=definition.visibility
             )
             
-            sanitized_name = validated_name.replace(CONTROL_CHARS_REGEX, SANITIZE_REPLACEMENT) or 'unknown'
+            sanitized_name = CONTROL_CHARS_REGEX.sub(SANITIZE_REPLACEMENT, validated_name) if validated_name else 'unknown'
             logger.info(f"Creating class {sanitize_for_logging(sanitized_name)} with enhanced structure")
             
             # Check if class already exists
