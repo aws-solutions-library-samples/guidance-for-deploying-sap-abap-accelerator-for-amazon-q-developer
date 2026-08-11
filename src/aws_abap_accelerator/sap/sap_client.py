@@ -2174,7 +2174,7 @@ class SAPADTClient:
         """Activate object and return detailed result (matching TypeScript activateObjectWithDetails)"""
         try:
             print(f"[SAP-CLIENT] Activating {sanitize_for_logging(object_name)}")
-            rap_logger.activation(sanitize_for_logging(object_name), sanitize_for_logging(object_type), 'SUCCESS', {'phase': 'START'})
+            rap_logger.activation(sanitize_for_logging(object_name), sanitize_for_logging(object_type), 'START', {'phase': 'START'})
             
             # Build activation XML
             activation_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -2200,23 +2200,48 @@ class SAPADTClient:
                     
                     # Check if activation was actually executed
                     activation_executed = True  # Default to true if not specified
+                    generation_executed = None  # Default to None (attribute not returned)
                     if root is not None:
                         for elem in root.iter():
                             for attr_name, attr_value in elem.attrib.items():
                                 if 'activationExecuted' in attr_name:
                                     activation_executed = attr_value.lower() == 'true'
-                                    break
+                                elif 'generationExecuted' in attr_name:
+                                    generation_executed = attr_value.lower() == 'true'
                     
-                    print(f"[SAP-CLIENT] Activation executed: {activation_executed}")
+                    print(f"[SAP-CLIENT] Activation executed: {activation_executed}, generation executed: {generation_executed}")
                     
-                    success = syntax_result.success and activation_executed
+                    # ADT skips the activation step when there is no inactive version pending
+                    # for the requested URI. It reports activationExecuted="false" together with
+                    # generationExecuted="true" and no messages - the object is active, so this
+                    # is a no-op, not a failure.
+                    activation_skipped_as_noop = (
+                        activation_executed is False
+                        and generation_executed is True
+                        and syntax_result.success
+                    )
+                    
+                    if activation_skipped_as_noop:
+                        print("[SAP-CLIENT] Activation step skipped by ADT (nothing inactive to activate) "
+                              "but generation ran with no messages - treating object as active")
+                    
+                    success = syntax_result.success and (activation_executed or activation_skipped_as_noop)
+                    activated = activation_executed or activation_skipped_as_noop
+                    
+                    if activated:
+                        activation_messages = (
+                            ['Object was already active - ADT ran generation only']
+                            if activation_skipped_as_noop else []
+                        )
+                    else:
+                        activation_messages = ['Activation was cancelled due to errors']
                     
                     result = ActivationResult(
                         success=success,
-                        activated=activation_executed,
+                        activated=activated,
                         errors=syntax_result.errors,
                         warnings=syntax_result.warnings,
-                        messages=['Activation was cancelled due to errors'] if not activation_executed else []
+                        messages=activation_messages
                     )
                     
                     # Auto-publish service bindings after successful activation
@@ -3355,6 +3380,7 @@ class SAPADTClient:
         messages = []
         activation_executed = None  # Default to None (not found)
         activation_executed_found = False  # Track if we found the attribute
+        generation_executed = None  # Default to None (not found)
         
         try:
             root = safe_parse_xml(xml_content)
@@ -3363,7 +3389,7 @@ class SAPADTClient:
                 return ActivationResult(success=True, activated=True, errors=[], warnings=[], messages=[])
             
             # Check for chkl:properties to determine if activation was executed
-            # Format: <chkl:properties checkExecuted="true" activationExecuted="false" .../>
+            # Format: <chkl:properties checkExecuted="true" activationExecuted="false" generationExecuted="true"/>
             for elem in root.iter():
                 if 'properties' in elem.tag.lower():
                     for attr_name, attr_value in elem.attrib.items():
@@ -3371,7 +3397,9 @@ class SAPADTClient:
                             activation_executed_found = True
                             activation_executed = attr_value.lower() == 'true'
                             print(f"[SAP-CLIENT] activationExecuted = {activation_executed}")
-                            break
+                        elif 'generationExecuted' in attr_name:
+                            generation_executed = attr_value.lower() == 'true'
+                            print(f"[SAP-CLIENT] generationExecuted = {generation_executed}")
             
             # Parse messages - handle SAP's chkl:messages format
             # Format: <msg objDescr="..." type="E" line="1" href="..."><shortText><txt>message</txt></shortText></msg>
@@ -3426,17 +3454,41 @@ class SAPADTClient:
             print(f"[SAP-CLIENT] Error parsing activation result: {sanitize_for_logging(str(e))}")
             logger.error(f"Error parsing activation result: {sanitize_for_logging(str(e))}")
         
-        # Success logic matching TypeScript version:
+        # Success logic:
         # Success if no errors AND (activationExecuted is null/not found OR activationExecuted is true)
         # This handles cases where SAP doesn't return activationExecuted attribute (backward compatibility)
         no_errors = len(errors) == 0
-        activation_ok = activation_executed is None or activation_executed == True
+        
+        # ADT skips the activation step when there is no inactive version pending for the
+        # requested URI (object already active). It then reports activationExecuted="false"
+        # together with generationExecuted="true" and returns no messages. That is a no-op,
+        # not a failure - the object is active on the system.
+        activation_skipped_as_noop = (
+            activation_executed is False
+            and generation_executed is True
+            and no_errors
+        )
+        
+        if activation_skipped_as_noop:
+            print("[SAP-CLIENT] Activation step skipped by ADT (nothing inactive to activate) "
+                  "but generation ran with no messages - treating object as active")
+            messages.append('Object was already active - ADT ran generation only')
+        
+        activation_ok = activation_executed is None or activation_executed is True or activation_skipped_as_noop
         success = no_errors and activation_ok
         
-        # Activated is true only if explicitly set to true (not null/not found)
-        activated = activation_executed == True
+        # Activated if ADT confirmed activation, if it ran generation on an already-active
+        # object, or if it returned no activation properties at all and reported no errors
+        # (older releases omit the attribute - success and activated must not contradict,
+        # otherwise the caller reports "activated=False" for a successful activation).
+        activated = (
+            activation_executed is True
+            or activation_skipped_as_noop
+            or (activation_executed is None and no_errors)
+        )
         
-        print(f"[SAP-CLIENT] Activation result: no_errors={no_errors}, activation_executed={activation_executed}, success={success}, activated={activated}")
+        print(f"[SAP-CLIENT] Activation result: no_errors={no_errors}, activation_executed={activation_executed}, "
+              f"generation_executed={generation_executed}, success={success}, activated={activated}")
         
         return ActivationResult(
             success=success,
@@ -7065,17 +7117,17 @@ class SAPADTClient:
                                   extract_from_xml(parsed, 'objectReference.$.uri', None))
                             
                             if uri:
-                                print(f"[SAP-CLIENT] ✅ Discovery successful: {sanitize_for_logging(uri)}")
+                                print(f"[SAP-CLIENT] OK: Discovery successful: {sanitize_for_logging(uri)}")
                                 print(f"[SAP-CLIENT] === END DISCOVERY ===")
                                 return uri
                             else:
-                                print(f"[SAP-CLIENT] ❌ No URI found in discovery response")
+                                print(f"[SAP-CLIENT] FAILED: No URI found in discovery response")
                         else:
-                            print(f"[SAP-CLIENT] ❌ Failed to parse discovery XML")
+                            print(f"[SAP-CLIENT] FAILED: Failed to parse discovery XML")
                     else:
-                        print(f"[SAP-CLIENT] ❌ Discovery failed with status {response.status}")
+                        print(f"[SAP-CLIENT] FAILED: Discovery failed with status {response.status}")
             except Exception as discovery_error:
-                print(f"[SAP-CLIENT] ❌ Discovery exception: {sanitize_for_logging(str(discovery_error))}")
+                print(f"[SAP-CLIENT] FAILED: Discovery exception: {sanitize_for_logging(str(discovery_error))}")
             
             print(f"[SAP-CLIENT] Using fallback URI: {sanitize_for_logging(fallback_uri)}")
             print(f"[SAP-CLIENT] === END DISCOVERY ===")
