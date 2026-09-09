@@ -83,8 +83,16 @@ class ABAPAcceleratorServer:
                     await self._ensure_connected()
                 except Exception as e:
                     logger.error(f"Connection attempt failed: {sanitize_for_logging(str(e))}")
-            
-            return self.tool_handlers.handle_connection_status(self.connected)
+
+            # Actively probe the session instead of trusting the cached flag —
+            # a session can time out while self.connected is still True.
+            probe = None
+            try:
+                probe = await self.sap_client.probe_session()
+            except Exception as e:
+                logger.error(f"Session probe failed: {sanitize_for_logging(str(e))}")
+
+            return self.tool_handlers.handle_connection_status(self.connected, probe)
         
         # Get objects tool
         @self.mcp.tool()

@@ -711,6 +711,37 @@ class SAPADTClient:
             logger.error(f"Failed to get CSRF token: {sanitize_for_logging(str(e))}")
             return False
     
+    async def probe_session(self) -> Dict[str, Any]:
+        """Actively verify the ADT session is still valid, rather than trusting
+        cached auth state.
+
+        Issues one cheap authenticated read (the discovery document). A 200 means
+        the session is live; a 400 (``Session Timed Out``), 401 or 403 means the
+        cookies have expired even though we once authenticated — the exact case
+        where the cached status is misleadingly "Connected". Returns
+        ``{"session_valid": bool, "status": int|None, "detail": str}``.
+        """
+        if not self.session:
+            return {"session_valid": False, "status": None, "detail": "no session established"}
+        try:
+            url = f"/sap/bc/adt/discovery?sap-client={self.connection.client}"
+            headers = await self._get_appropriate_headers()
+            headers['Accept'] = 'application/atomsvc+xml, application/xml'
+            async with self.session.get(url, headers=headers) as response:
+                status = response.status
+                if status == 200:
+                    return {"session_valid": True, "status": status, "detail": "session valid"}
+                body = ""
+                try:
+                    body = (await response.text())[:200].strip()
+                except Exception:
+                    pass
+                detail = f"probe returned {status}" + (f": {body}" if body else "")
+                return {"session_valid": False, "status": status, "detail": detail}
+        except Exception as e:
+            return {"session_valid": False, "status": None,
+                    "detail": f"probe failed: {sanitize_for_logging(str(e))}"}
+
     async def get_current_user_info(self) -> Optional[Dict[str, str]]:
         """Get current user information from SAP system"""
         try:
