@@ -765,6 +765,45 @@ class ToolHandlers:
             logger.error(f"Error searching objects: {sanitize_for_logging(str(e))}")
             return f"❌ Error searching objects: {sanitize_for_logging(str(e))}"
     
+    async def handle_data_preview(self, args: Dict[str, Any]) -> str:
+        """Handle a read-only data preview (ad-hoc SELECT) request."""
+        try:
+            query = args.get('query', '')
+            max_rows = args.get('max_rows', 100)
+            if not query or not query.strip():
+                return "❌ A SQL SELECT query is required."
+
+            logger.info(f"Data preview requested (max_rows={max_rows})")
+
+            if not self.sap_client.session:
+                logger.info("SAP client not connected, attempting to connect...")
+                connected = await self.sap_client.connect()
+                if not connected:
+                    return "❌ Failed to connect to SAP system"
+
+            result = await self.sap_client.data_preview(query, max_rows=max_rows)
+            if 'error' in result:
+                return f"❌ Data preview error: {result['error']}"
+
+            columns = result.get('columns', [])
+            rows = result.get('rows', [])
+            if not rows:
+                return f"📊 Query ran and matched no rows.\nExecuted: {result.get('executed_query', '')}"
+
+            lines = [
+                f"📊 {len(rows)} row(s) returned (total matched: {result.get('total_rows', len(rows))}):",
+                "",
+                "| " + " | ".join(columns) + " |",
+                "| " + " | ".join("---" for _ in columns) + " |",
+            ]
+            for r in rows:
+                lines.append("| " + " | ".join(str(r.get(c, '')) for c in columns) + " |")
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.error(f"Error in data preview: {sanitize_for_logging(str(e))}")
+            return f"❌ Error in data preview: {sanitize_for_logging(str(e))}"
+
     async def handle_get_migration_analysis(self, object_name: str, object_type: str) -> str:
         """Handle get migration analysis request"""
         try:

@@ -7061,11 +7061,106 @@ class SAPADTClient:
             
             logger.info(f"Parsed {len(results)} valid search results")
             return results
-            
+
         except Exception as e:
             logger.error(f"Error parsing search results: {sanitize_for_logging(str(e))}")
             return []
-    
+
+    async def data_preview(self, query: str, max_rows: int = 100) -> Dict[str, Any]:
+        """Run a read-only ad-hoc SELECT via ADT Data Preview and return its rows.
+
+        This is the ADT-native path behind Eclipse's Data Preview
+        (``/sap/bc/adt/datapreview/freestyle``): it runs a single SELECT and
+        returns rows for any table the connected user is authorized to display.
+        All existing tools operate on repository *objects*; this is the only path
+        to table *contents* (customizing / master data), which discovery stages
+        need to reconcile a requirement against the system's configuration.
+
+        Read-only by construction: only ``SELECT`` (or ``WITH ... SELECT``) is
+        accepted and any write/DDL keyword is rejected before the request leaves
+        the client. Returns
+        ``{"columns", "rows", "total_rows", "executed_query"}`` or
+        ``{"error": <message>}`` on an ADT exception.
+        """
+        import re
+        await self._ensure_session_valid()
+
+        stripped = (query or "").strip()
+        if not re.match(r'^\s*(SELECT|WITH)\b', stripped, re.IGNORECASE):
+            return {"error": "Only read-only SELECT (or WITH ... SELECT) queries are permitted."}
+        forbidden = re.search(
+            r'\b(INSERT|UPDATE|DELETE|MODIFY|DROP|ALTER|CREATE|TRUNCATE|CALL|COMMIT|ROLLBACK)\b',
+            stripped, re.IGNORECASE)
+        if forbidden:
+            return {"error": f"Write/DDL keyword not allowed in a data preview: {forbidden.group(1).upper()}."}
+
+        rows_cap = max(1, min(int(max_rows or 100), 500))
+        await self._refresh_csrf_token()
+        url = f"/sap/bc/adt/datapreview/freestyle?rowNumber={rows_cap}&sap-client={self.connection.client}"
+        headers = await self._get_appropriate_headers()
+        headers['Accept'] = 'application/vnd.sap.adt.datapreview.table.v1+xml'
+        headers['Content-Type'] = 'text/plain; charset=utf-8'
+
+        try:
+            async with self.session.post(url, headers=headers, data=stripped.encode('utf-8')) as response:
+                body = await response.text()
+                if response.status != 200:
+                    msg = self._extract_adt_exception_message(body) or f"HTTP {response.status}"
+                    logger.warning(f"Data preview failed ({response.status}): {sanitize_for_logging(msg)}")
+                    return {"error": msg}
+        except Exception as e:
+            logger.error(f"Data preview request failed: {sanitize_for_logging(str(e))}")
+            return {"error": f"Request failed: {sanitize_for_logging(str(e))}"}
+
+        return self._parse_data_preview(body)
+
+    def _parse_data_preview(self, xml_content: str) -> Dict[str, Any]:
+        """Parse the column-oriented dataPreview:tableData XML into row dicts."""
+        ns = 'http://www.sap.com/adt/dataPreview'
+        def q(tag: str) -> str:
+            return f'{{{ns}}}{tag}'
+        try:
+            root = ET.fromstring(xml_content)
+        except Exception as e:
+            logger.error(f"Failed to parse data preview XML: {sanitize_for_logging(str(e))}")
+            return {"error": "Could not parse data preview response."}
+
+        total = root.findtext(q('totalRows'))
+        executed = root.findtext(q('executedQueryString')) or ""
+        columns: List[str] = []
+        col_values: List[List[str]] = []
+        for col in root.findall(q('columns')):
+            meta = col.find(q('metadata'))
+            name = meta.get(q('name')) if meta is not None else None
+            if not name:
+                continue
+            values = [(d.text or '') for d in col.findall(f"{q('dataSet')}/{q('data')}")]
+            columns.append(name)
+            col_values.append(values)
+
+        n = max((len(v) for v in col_values), default=0)
+        rows = [
+            {columns[c]: (col_values[c][i] if i < len(col_values[c]) else '') for c in range(len(columns))}
+            for i in range(n)
+        ]
+        return {
+            "columns": columns,
+            "rows": rows,
+            "total_rows": int(total) if (total and total.isdigit()) else len(rows),
+            "executed_query": executed,
+        }
+
+    def _extract_adt_exception_message(self, xml_content: str) -> Optional[str]:
+        """Pull the human-readable <message> out of an ADT <exc:exception> body."""
+        try:
+            root = ET.fromstring(xml_content)
+        except Exception:
+            return None
+        for el in root.iter():
+            if el.tag.endswith('message') and (el.text or '').strip():
+                return el.text.strip()
+        return None
+
     async def _get_resource_uri(self, object_name: str, object_type: str) -> Optional[str]:
         """Get resource URI for object using discovery or fallback patterns (enhanced logging)"""
         try:
