@@ -280,6 +280,18 @@ class ABAPAcceleratorServer:
                 'include_inactive': include_inactive
             })
         
+        # Data preview tool (read-only ad-hoc SELECT against SAP tables)
+        @self.mcp.tool()
+        async def aws_abap_cb_data_preview(
+            query: str,
+            max_rows: Optional[int] = 100
+        ) -> str:
+            """Run a read-only ad-hoc SQL SELECT against SAP tables via ADT Data Preview and return rows. Use for customizing/master-data reads (e.g. TFKTAXNUMTYPE, T005); SELECT only, no writes."""
+            return await self.tool_handlers.handle_data_preview({
+                'query': query,
+                'max_rows': max_rows
+            })
+
         # Get migration analysis tool
         @self.mcp.tool()
         async def aws_abap_cb_get_migration_analysis(
