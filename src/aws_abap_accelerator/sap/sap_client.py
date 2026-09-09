@@ -7129,14 +7129,63 @@ class SAPADTClient:
             except Exception as discovery_error:
                 print(f"[SAP-CLIENT] FAILED: Discovery exception: {sanitize_for_logging(str(discovery_error))}")
             
+            # Search-based fallback: the ADT information-system search returns the
+            # object's real adtcore:uri, so consuming it resolves TABL/DS and any
+            # other type the hand-built patterns miss — without a per-type branch,
+            # and without the map drifting from ADT's own routing.
+            search_uri = await self._search_resource_uri(object_name, object_type)
+            if search_uri:
+                print(f"[SAP-CLIENT] OK: search-supplied URI: {sanitize_for_logging(search_uri)}")
+                print(f"[SAP-CLIENT] === END DISCOVERY ===")
+                return search_uri
+
             print(f"[SAP-CLIENT] Using fallback URI: {sanitize_for_logging(fallback_uri)}")
             print(f"[SAP-CLIENT] === END DISCOVERY ===")
             return fallback_uri
-            
+
         except Exception as error:
             print(f"[SAP-CLIENT] Resource URI discovery failed: {sanitize_for_logging(str(error))}")
             url_patterns = get_object_url_patterns(object_type, object_name)
             return f"/sap/bc/adt/{url_patterns[0]}/{object_name}"
+
+    async def _search_resource_uri(self, object_name: str, object_type: str) -> Optional[str]:
+        """Resolve an object's resource URI from the ADT information-system search.
+
+        The search response carries the object's real ``adtcore:uri``, so this
+        covers object types the hand-built per-type patterns do not (e.g. a
+        ``TABL/DS`` structure lives at ``/sap/bc/adt/ddic/structures/<name>``,
+        not under the tables path). Returns the base object URI — any
+        ``/source/main`` suffix or ``#fragment`` stripped, so the caller can
+        append ``/source/main`` exactly once — or ``None`` when no exact-name
+        match is found.
+        """
+        try:
+            from sap_types.sap_types import SearchOptions
+            results = await self.search_objects(SearchOptions(query=object_name, max_results=50))
+        except Exception as search_error:
+            print(f"[SAP-CLIENT] Search-based URI lookup failed: {sanitize_for_logging(str(search_error))}")
+            return None
+
+        name_matches = [r for r in results if r.uri and r.name.upper() == object_name.upper()]
+        if not name_matches:
+            return None
+
+        # Prefer a result whose ADT type matches the requested one (compare the
+        # leading segment, e.g. "TABL/DS" -> "TABL"); otherwise take the first
+        # exact-name match.
+        wanted = object_type.upper()
+        chosen = next(
+            (r for r in name_matches if r.type.upper().split('/', 1)[0] == wanted),
+            name_matches[0],
+        )
+
+        # Normalise to the base object URI so the caller's "/source/main" append
+        # is not duplicated for URIs that already carry it (or a #fragment).
+        uri = chosen.uri.split('#', 1)[0]
+        marker = '/source/main'
+        if marker in uri:
+            uri = uri[:uri.index(marker)]
+        return uri.rstrip('/') or None
     
     def _map_to_adt_type(self, object_type: str) -> str:
         """Map object type to ADT type for discovery"""
