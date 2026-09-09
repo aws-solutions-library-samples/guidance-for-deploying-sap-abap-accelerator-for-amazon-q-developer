@@ -104,9 +104,24 @@ cd guidance-for-deploying-sap-abap-accelerator-for-amazon-q-developer
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the server
+# Run the server (foreground, for development)
 python src/aws_abap_accelerator/main.py
 ```
+
+To keep the server running independently of the launching shell, start it
+detached and log to a file so a failure is diagnosable rather than silent — a
+bare `&` dies with the shell it was launched from:
+
+```bash
+nohup python src/aws_abap_accelerator/main.py > mcp-server.log 2>&1 &
+disown
+```
+
+> **If you run in a virtual environment, launch via the interpreter path itself
+> (`.venv/bin/python …`), never a resolved/canonicalised path.** `.venv/bin/python`
+> is a symlink to the base interpreter; resolving the symlink and launching the
+> real path bypasses the virtualenv's `site-packages`, so the server fails to
+> start with import errors. Tools or scripts that canonicalise paths hit this.
 
 ## Environment Variables
 
