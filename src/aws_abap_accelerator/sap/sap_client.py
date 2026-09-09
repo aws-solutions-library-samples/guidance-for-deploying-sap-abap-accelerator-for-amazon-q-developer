@@ -6949,22 +6949,36 @@ class SAPADTClient:
             # Get appropriate headers
             headers = await self._get_appropriate_headers()
             headers['Accept'] = 'application/xml'
-            
-            # Execute search
-            async with self.session.get(url, params=params, headers=headers) as response:
-                logger.info(f"Search response status: {response.status}")
-                
-                if response.status == 200:
-                    xml_content = await response.text()
-                    results = self._parse_search_results(xml_content)
-                    logger.info(f"Found {len(results)} objects")
-                    return results
-                else:
-                    logger.error(f"Search failed with status: {response.status}")
+
+            # Execute search, re-authenticating once on a session timeout rather
+            # than translating a non-2xx into an empty result. A stale ADT session
+            # returns 400 "Session Timed Out"; previously that (and every other
+            # non-200) returned [], indistinguishable from "matched nothing" — and
+            # the re-auth/retry machinery below was never reached from any read.
+            for attempt in range(2):
+                async with self.session.get(url, params=params, headers=headers) as response:
+                    logger.info(f"Search response status: {response.status}")
+
+                    if response.status == 200:
+                        xml_content = await response.text()
+                        results = self._parse_search_results(xml_content)
+                        logger.info(f"Found {len(results)} objects")
+                        return results
+
                     error_text = await response.text()
+                    if attempt == 0 and await self._handle_session_timeout_error(response.status, error_text):
+                        logger.info("Retrying search after re-authentication")
+                        headers = await self._get_appropriate_headers()
+                        headers['Accept'] = 'application/xml'
+                        continue
+
+                    logger.error(f"Search failed with status: {response.status}")
                     logger.error(f"Error response: {sanitize_for_logging(error_text[:500])}")
-                    return []
-                    
+                    raise Exception(
+                        f"Search failed: HTTP {response.status}. "
+                        f"Returning an empty result would misreport this as 'no objects found'."
+                    )
+
         except Exception as e:
             logger.error(f"Object search failed: {sanitize_for_logging(str(e))}")
             raise e
