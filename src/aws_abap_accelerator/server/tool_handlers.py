@@ -36,11 +36,24 @@ class ToolHandlers:
             logger.info("Successfully connected to SAP system")
         return True
     
-    def handle_connection_status(self, connected: bool) -> str:
-        """Handle connection status check"""
+    def handle_connection_status(self, connected: bool, probe: Optional[Dict[str, Any]] = None) -> str:
+        """Handle connection status check.
+
+        ``connected`` reflects whether we ever authenticated (cached state).
+        ``probe`` (from sap_client.probe_session) reflects whether the ADT
+        session is valid *right now* — the two differ once the session times out,
+        which is exactly when the cached status is misleading. Both are reported.
+        """
         try:
-            status = "Connected" if connected else "Disconnected"
-            
+            authenticated = "Yes" if connected else "No"
+            if probe is not None:
+                session_valid = probe.get("session_valid", False)
+                status = "Connected" if session_valid else "Session expired"
+            else:
+                # No probe supplied: fall back to cached state (legacy callers).
+                session_valid = None
+                status = "Connected" if connected else "Disconnected"
+
             connection_details = (
                 f"- Host: {self.sap_client.connection.host}\n"
                 f"- Client: {self.sap_client.connection.client}\n"
@@ -61,8 +74,21 @@ class ToolHandlers:
                     f"- Username: {self.sap_client.connection.username}"
                 )
             
-            return f"SAP Connection Status: {status}\n\nConnection Details:\n{connection_details}"
-            
+            # Distinguish "authenticated" (cached) from "session valid" (probed),
+            # so a timed-out session is not reported as healthy.
+            session_lines = [f"- Authenticated: {authenticated}"]
+            if probe is not None:
+                session_lines.append(f"- Session valid (probed): {'Yes' if session_valid else 'No'}")
+                if not session_valid and probe.get("detail"):
+                    session_lines.append(f"- Probe detail: {probe['detail']}")
+            session_block = "\n".join(session_lines)
+
+            return (
+                f"SAP Connection Status: {status}\n\n"
+                f"Session:\n{session_block}\n\n"
+                f"Connection Details:\n{connection_details}"
+            )
+
         except Exception as e:
             logger.error(f"Error getting connection status: {sanitize_for_logging(str(e))}")
             return f"Error getting connection status: {sanitize_for_logging(str(e))}"
