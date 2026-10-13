@@ -1,1 +1,0 @@
-# ABAP-Accelerator MCP Server
